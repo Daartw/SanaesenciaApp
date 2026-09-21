@@ -1,0 +1,35 @@
+# Android Studio / IntelliJ
+*.iml
+.idea/
+
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Local machine configuration
+local.properties
+
+# Android generated files
+.externalNativeBuild/
+.cxx/
+captures/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Kotlin / Java generated
+*.class
+
+# Secrets / local environment files
+.env
+.env.*
+*.jks
+*.keystore
+
+# Firebase / Google service credentials (only commit if intentionally public)
+# google-services.json
