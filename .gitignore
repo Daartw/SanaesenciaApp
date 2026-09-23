@@ -1,0 +1,23 @@
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+.cxx/
+.externalNativeBuild/
+captures/
+
+# Generated / IDE files
+*.apk
+*.aab
+*.log
+
+# Local secrets
+*.jks
+*.keystore
+
+# Kotlin/Java generated output
+**/generated/
+**/kspCaches/
