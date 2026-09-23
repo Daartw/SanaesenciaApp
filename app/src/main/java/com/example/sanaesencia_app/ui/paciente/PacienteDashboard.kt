@@ -1,16 +1,41 @@
 package com.example.sanaesencia_app.ui.paciente
 
 import android.content.Context
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.sanaesencia_app.domain.model.*
+import com.example.sanaesencia_app.domain.model.EstadoTerapeuta
+import com.example.sanaesencia_app.domain.model.ModalidadAtencion
+import com.example.sanaesencia_app.domain.model.Promocion
+import com.example.sanaesencia_app.domain.model.Producto
+import com.example.sanaesencia_app.domain.model.Profesional
 import com.example.sanaesencia_app.ui.catalogo.UbicacionSedeCard
 
 @Composable
@@ -20,90 +45,378 @@ fun PacienteDashboard(
     onAgenda: () -> Unit,
     onHistorial: () -> Unit
 ) {
-    val vm: PacienteViewModel = viewModel(factory = PacienteViewModel.factory(context))
-    val profesionales by vm.filtrados.collectAsStateWithLifecycle()
-    val especialidad by vm.especialidad.collectAsStateWithLifecycle()
-    val modalidad by vm.modalidad.collectAsStateWithLifecycle()
-    val texto by vm.texto.collectAsStateWithLifecycle()
-    val experiencia by vm.experienciaMinima.collectAsStateWithLifecycle()
-    val especialidades = listOf("Todas") + vm.profesionales.value.map { it.especialidad }.distinct()
+    val vm: PacienteViewModel = viewModel(
+        factory = PacienteViewModel.factory(context)
+    )
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val profesionales by vm.filtrados.collectAsState(initial = emptyList())
+    val especialidad by vm.especialidad.collectAsState(initial = "Todas")
+    val modalidad by vm.modalidad.collectAsState(initial = null)
+    val texto by vm.texto.collectAsState(initial = "")
+    val experiencia by vm.experienciaMinima.collectAsState(initial = 0)
+
+    val profesionalesDisponibles by vm.profesionales.collectAsState(initial = emptyList())
+
+    val especialidades = listOf("Todas") +
+            profesionalesDisponibles
+                .map { it.especialidad }
+                .distinct()
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+
         item {
-            Text("Hola, paciente", style = MaterialTheme.typography.headlineSmall)
-            Text("Encuentra un profesional y agenda tu atención.", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = "Hola, paciente",
+                style = MaterialTheme.typography.headlineSmall
+            )
+
+            Text(
+                text = "Encuentra un profesional y agenda tu atención.",
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
+
         item {
-            OutlinedTextField(texto, { vm.texto.value = it }, Modifier.fillMaxWidth(), label = { Text("Buscar por nombre, carrera o certificación") })
+            OutlinedTextField(
+                value = texto,
+                onValueChange = {
+                    vm.texto.value = it
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text("Buscar por nombre, carrera o certificación")
+                }
+            )
         }
+
         item {
-            Text("Especialidad", style = MaterialTheme.typography.labelLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                especialidades.take(3).forEach { value -> FilterChip(especialidad == value, { vm.especialidad.value = value }, label = { Text(value) }) }
+            Text(
+                text = "Especialidad",
+                style = MaterialTheme.typography.labelLarge
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                especialidades
+                    .take(3)
+                    .forEach { value ->
+
+                        FilterChip(
+                            selected = especialidad == value,
+                            onClick = {
+                                vm.especialidad.value = value
+                            },
+                            label = {
+                                Text(value)
+                            }
+                        )
+                    }
             }
+
             if (especialidades.size > 3) {
-                var expanded by remember { mutableStateOf(false) }
+                var expanded by remember {
+                    mutableStateOf(false)
+                }
+
                 Box {
-                    OutlinedButton(onClick = { expanded = true }) { Text("Más especialidades") }
-                    DropdownMenu(expanded, { expanded = false }) {
-                        especialidades.drop(3).forEach { value -> DropdownMenuItem({ Text(value) }, { vm.especialidad.value = value; expanded = false }) }
+                    OutlinedButton(
+                        onClick = {
+                            expanded = true
+                        }
+                    ) {
+                        Text("Más especialidades")
+                    }
+
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = {
+                            expanded = false
+                        }
+                    ) {
+                        especialidades
+                            .drop(3)
+                            .forEach { value ->
+
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(value)
+                                    },
+                                    onClick = {
+                                        vm.especialidad.value = value
+                                        expanded = false
+                                    }
+                                )
+                            }
                     }
                 }
             }
         }
+
         item {
-            Text("Modalidad", style = MaterialTheme.typography.labelLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(modalidad == null, { vm.modalidad.value = null }, label = { Text("Todas") })
-                ModalidadAtencion.values().forEach { mode -> FilterChip(modalidad == mode, { vm.modalidad.value = mode }, label = { Text(if (mode == ModalidadAtencion.ONLINE) "Online" else "Presencial") }) }
+            Text(
+                text = "Modalidad",
+                style = MaterialTheme.typography.labelLarge
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+
+                FilterChip(
+                    selected = modalidad == null,
+                    onClick = {
+                        vm.modalidad.value = null
+                    },
+                    label = {
+                        Text("Todas")
+                    }
+                )
+
+                ModalidadAtencion.values().forEach { mode ->
+
+                    FilterChip(
+                        selected = modalidad == mode,
+                        onClick = {
+                            vm.modalidad.value = mode
+                        },
+                        label = {
+                            Text(
+                                if (mode == ModalidadAtencion.ONLINE) {
+                                    "Online"
+                                } else {
+                                    "Presencial"
+                                }
+                            )
+                        }
+                    )
+                }
             }
         }
+
         item {
-            Text("Experiencia mínima: $experiencia años", style = MaterialTheme.typography.labelLarge)
-            Slider(value = experiencia.toFloat(), onValueChange = { vm.experienciaMinima.value = it.toInt() }, valueRange = 0f..10f, steps = 9)
+            Text(
+                text = "Experiencia mínima: $experiencia años",
+                style = MaterialTheme.typography.labelLarge
+            )
+
+            Slider(
+                value = experiencia.toFloat(),
+                onValueChange = {
+                    vm.experienciaMinima.value = it.toInt()
+                },
+                valueRange = 0f..10f,
+                steps = 9
+            )
         }
+
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = onAgenda, Modifier.weight(1f)) { Text("Mi agenda") }
-                OutlinedButton(onClick = onHistorial, Modifier.weight(1f)) { Text("Historial") }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+
+                Button(
+                    onClick = onAgenda,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Mi agenda")
+                }
+
+                OutlinedButton(
+                    onClick = onHistorial,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Historial")
+                }
             }
         }
-        item { UbicacionSedeCard() }
-        item { Text("Profesionales (${profesionales.size})", style = MaterialTheme.typography.titleLarge) }
-        items(profesionales, key = { it.id }) { profesional -> ProfesionalCard(profesional, onProfesional) }
-        item { ProductosSection(vm.productos) }
-        item { PromocionesSection(vm.promociones) }
-    }
-}
 
-@Composable
-private fun ProfesionalCard(profesional: Profesional, onClick: (Profesional) -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(profesional.nombre, style = MaterialTheme.typography.titleLarge)
-            Text(profesional.especialidad, style = MaterialTheme.typography.titleMedium)
-            Text("${profesional.carrera} · ${profesional.aniosExperiencia} años de experiencia aprox.")
-            Text("Certificaciones: ${profesional.certificaciones.joinToString()}")
-            Text("Capacitaciones: ${profesional.capacitaciones.joinToString()}")
-            Text("Modalidad: ${profesional.modalidades.joinToString { if (it == ModalidadAtencion.ONLINE) "Online" else "Presencial" }}")
-            AssistChip(onClick = {}, enabled = false, label = { Text("Estado: ${profesional.estado.name.lowercase()}") })
-            Button(onClick = { onClick(profesional) }, enabled = profesional.estado == EstadoTerapeuta.DISPONIBLE, Modifier.fillMaxWidth()) { Text("Ver perfil y agendar") }
+        item {
+            UbicacionSedeCard()
+        }
+
+        item {
+            Text(
+                text = "Profesionales (${profesionales.size})",
+                style = MaterialTheme.typography.titleLarge
+            )
+        }
+
+        items(
+            items = profesionales,
+            key = { it.id }
+        ) { profesional ->
+
+            ProfesionalCard(
+                profesional = profesional,
+                onClick = onProfesional
+            )
+        }
+
+        item {
+            ProductosSection(vm.productos)
+        }
+
+        item {
+            PromocionesSection(vm.promociones)
         }
     }
 }
 
 @Composable
-private fun ProductosSection(productos: List<Producto>) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Catálogo de productos", style = MaterialTheme.typography.titleLarge)
-        productos.forEach { p -> Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp)) { Text(p.nombre, style = MaterialTheme.typography.titleMedium); Text(p.descripcion); Text("Precio referencial: $${p.precioReferencial}") } } }
+private fun ProfesionalCard(
+    profesional: Profesional,
+    onClick: (Profesional) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+
+            Text(
+                text = profesional.nombre,
+                style = MaterialTheme.typography.titleLarge
+            )
+
+            Text(
+                text = profesional.especialidad,
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            Text(
+                text = "${profesional.carrera} · ${profesional.aniosExperiencia} años de experiencia aprox."
+            )
+
+            Text(
+                text = "Certificaciones: ${
+                    profesional.certificaciones.joinToString()
+                }"
+            )
+
+            Text(
+                text = "Capacitaciones: ${
+                    profesional.capacitaciones.joinToString()
+                }"
+            )
+
+            Text(
+                text = "Modalidad: ${
+                    profesional.modalidades.joinToString {
+                        if (it == ModalidadAtencion.ONLINE) {
+                            "Online"
+                        } else {
+                            "Presencial"
+                        }
+                    }
+                }"
+            )
+
+            AssistChip(
+                onClick = {},
+                enabled = false,
+                label = {
+                    Text(
+                        "Estado: ${
+                            profesional.estado.name.lowercase()
+                        }"
+                    )
+                }
+            )
+
+            Button(
+                onClick = {
+                    onClick(profesional)
+                },
+                enabled = profesional.estado == EstadoTerapeuta.DISPONIBLE,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Ver perfil y agendar")
+            }
+        }
     }
 }
 
 @Composable
-private fun PromocionesSection(promociones: List<Promocion>) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Promociones", style = MaterialTheme.typography.titleLarge)
-        promociones.filter { it.activa }.forEach { p -> Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp)) { Text(p.titulo, style = MaterialTheme.typography.titleMedium); Text(p.descripcion); Text("Vigencia: ${p.vigencia}") } } }
+private fun ProductosSection(
+    productos: List<Producto>
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+
+        Text(
+            text = "Catálogo de productos",
+            style = MaterialTheme.typography.titleLarge
+        )
+
+        productos.forEach { producto ->
+
+            Card(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp)
+                ) {
+                    Text(
+                        text = producto.nombre,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Text(producto.descripcion)
+
+                    Text(
+                        text = "Precio referencial: $${producto.precioReferencial}"
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PromocionesSection(
+    promociones: List<Promocion>
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+
+        Text(
+            text = "Promociones",
+            style = MaterialTheme.typography.titleLarge
+        )
+
+        promociones
+            .filter { it.activa }
+            .forEach { promocion ->
+
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp)
+                    ) {
+                        Text(
+                            text = promocion.titulo,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        Text(promocion.descripcion)
+
+                        Text(
+                            text = "Vigencia: ${promocion.vigencia}"
+                        )
+                    }
+                }
+            }
     }
 }
