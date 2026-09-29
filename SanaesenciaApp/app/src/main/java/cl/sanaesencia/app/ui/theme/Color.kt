@@ -1,0 +1,11 @@
+package cl.sanaesencia.app.ui.theme
+import androidx.compose.ui.graphics.Color
+val SanaesenciaBackground=Color(0xFFF9F6F0)
+val SanaesenciaCard=Color(0xFFFFFFFF)
+val SanaesenciaBeige=Color(0xFFF2ECE1)
+val SanaesenciaGreen=Color(0xFF6A7B66)
+val SanaesenciaDarkGreen=Color(0xFF4A5847)
+val SanaesenciaTerracotta=Color(0xFFD38B6E)
+val SanaesenciaBrown=Color(0xFF8B5E3C)
+val SanaesenciaText=Color(0xFF332D29)
+val WhatsAppGreen=Color(0xFF25D366)

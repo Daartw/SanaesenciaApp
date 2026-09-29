@@ -1,0 +1,21 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: sanaesencia-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: sanaesencia
+      MYSQL_USER: sanaesencia
+      MYSQL_PASSWORD: sanaesencia
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
+    volumes:
+      - sanaesencia_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+volumes:
+  sanaesencia_mysql_data:

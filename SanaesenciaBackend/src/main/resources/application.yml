@@ -1,0 +1,23 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+spring:
+  datasource:
+    url: jdbc:h2:mem:sanaesencia;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  h2:
+    console:
+      enabled: true
+app:
+  jwt:
+    secret: "CHANGE_THIS_SECRET_BEFORE_PRODUCTION_12345678901234567890"
+    expiration-ms: 86400000
+  desercion:
+    dias-inactividad: 21
