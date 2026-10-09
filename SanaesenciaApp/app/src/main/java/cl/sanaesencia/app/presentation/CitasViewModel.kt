@@ -1,0 +1,45 @@
+package cl.sanaesencia.app.presentation
+
+import androidx.lifecycle.viewModelScope
+
+import cl.sanaesencia.app.data.remote.CitaResponse
+import cl.sanaesencia.app.data.remote.CrearCitaRequest
+import cl.sanaesencia.app.data.remote.DisponibilidadResponse
+import cl.sanaesencia.app.data.repository.CitaRepository
+import cl.sanaesencia.app.domain.model.EstadoCita
+import cl.sanaesencia.app.domain.usecase.AgendarCitaUseCase
+import cl.sanaesencia.app.domain.validacion.ResultadoValidacion
+import cl.sanaesencia.app.domain.validacion.ValidadorCita
+import java.time.Clock
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+class CitasViewModel(private val repo: CitaRepository, private val agendar: AgendarCitaUseCase) : BaseViewModel() {
+    private val clock = Clock.system(ZoneId.of("America/Santiago"))
+    private val validator = ValidadorCita()
+    val citas = MutableStateFlow<UiState<List<CitaResponse>>>(UiState.Cargando)
+    val disponibilidad = MutableStateFlow<List<DisponibilidadResponse>>(emptyList())
+    val message = MutableStateFlow<String?>(null)
+    private val _creada = MutableStateFlow(false)
+    val creada: StateFlow<Boolean> = _creada.asStateFlow()
+    fun cargar() = viewModelScope.launch { ejecutar(citas, { it.isEmpty() }) { repo.misCitas() } }
+    fun disponibilidad(profesionalId: Long, fecha: LocalDate) = viewModelScope.launch {
+        runCatching { repo.disponibilidad(profesionalId, fecha) }.onSuccess { disponibilidad.value = it }.onFailure { disponibilidad.value = emptyList(); message.value = it.message ?: "No fue posible cargar los horarios" }
+    }
+    fun validarCitaSilencioso(fecha: LocalDate, hora: LocalTime?) = hora != null && validator(fecha, hora, clock) is ResultadoValidacion.Valido
+    fun validarCita(fecha: LocalDate, hora: LocalTime): Boolean = when (val result = validator(fecha, hora, clock)) {
+        ResultadoValidacion.Valido -> true
+        is ResultadoValidacion.Invalido -> { message.value = result.mensaje; false }
+    }
+    fun crear(request: CrearCitaRequest) = viewModelScope.launch {
+        runCatching { agendar(request) }.onSuccess { message.value = "Cita reservada correctamente"; _creada.value = true; cargar() }.onFailure { message.value = it.message ?: "No fue posible reservar la cita" }
+    }
+    fun cancelar(id: Long) = viewModelScope.launch { runCatching { repo.cancelar(id) }.onSuccess { message.value = "Cita cancelada"; cargar() }.onFailure { message.value = it.message ?: "No fue posible cancelar la cita" } }
+    fun consumirCreada() { _creada.value = false }
+    fun clearMessage() { message.value = null }
+}

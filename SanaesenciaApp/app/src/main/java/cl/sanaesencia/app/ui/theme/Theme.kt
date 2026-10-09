@@ -10,15 +10,15 @@ private val SanaesenciaColorScheme = lightColorScheme(
     background = SanaesenciaBackground,
     surface = SanaesenciaCard,
     onBackground = SanaesenciaText,
-    onSurface = SanaesenciaText
+    onSurface = SanaesenciaText,
 )
 
 @Composable
 fun SanaesenciaTheme(
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     MaterialTheme(
         colorScheme = SanaesenciaColorScheme,
-        content = content
+        content = { SanaesenciaBackground(content) },
     )
 }

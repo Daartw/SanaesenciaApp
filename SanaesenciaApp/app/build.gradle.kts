@@ -68,4 +68,6 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
+
+    testImplementation("junit:junit:4.13.2")
 }

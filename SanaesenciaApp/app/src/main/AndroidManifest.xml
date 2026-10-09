@@ -9,8 +9,8 @@
     <application
         android:theme="@style/Theme.Sanaesencia"
         android:label="Sanaesencia"
-        android:allowBackup="true"
-        android:usesCleartextTraffic="true">
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false">
 
         <activity
             android:name=".MainActivity"
@@ -23,6 +23,7 @@
 
         </activity>
 
+    <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.fileprovider" android:exported="false" android:grantUriPermissions="true"><meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" /></provider>
     </application>
 
 </manifest>
