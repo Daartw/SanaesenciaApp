@@ -1,3 +1,4 @@
+
 package cl.sanaesencia.app
 
 import android.content.Context
@@ -13,10 +14,21 @@ import cl.sanaesencia.app.data.session.SessionManager
 import cl.sanaesencia.app.domain.usecase.AgendarCitaUseCase
 import cl.sanaesencia.app.domain.usecase.DetectarDesercionUseCase
 import cl.sanaesencia.app.domain.usecase.VerificarStockBajoUseCase
+import cl.sanaesencia.app.presentation.LoginViewModel
+import cl.sanaesencia.app.presentation.CatalogViewModel
+import cl.sanaesencia.app.presentation.CartViewModel
+import cl.sanaesencia.app.presentation.CitasViewModel
+import cl.sanaesencia.app.presentation.AgendaViewModel
+import cl.sanaesencia.app.presentation.PerfilViewModel
+import cl.sanaesencia.app.ui.admin.AdminViewModel
 
 class AppContainer(context: Context) {
 
     private val applicationContext = context.applicationContext
+
+    init {
+        RetrofitClient.initialize(applicationContext)
+    }
 
     val sessionManager = SessionManager(applicationContext)
 
@@ -34,6 +46,8 @@ class AppContainer(context: Context) {
         api,
         sessionManager
     )
+
+    val loginViewModel = LoginViewModel(auth)
 
     val catalog = CatalogRepository(
         api,
@@ -60,4 +74,11 @@ class AppContainer(context: Context) {
     val detectarDesercion = DetectarDesercionUseCase()
 
     val verificarStockBajo = VerificarStockBajoUseCase()
+
+    val catalogViewModel = CatalogViewModel(catalog)
+    val cartViewModel = CartViewModel(cart, pedidos)
+    val citasViewModel = CitasViewModel(citas, agendarCita)
+    val agendaViewModel = AgendaViewModel(citas)
+    val perfilViewModel = PerfilViewModel(auth)
+    val adminViewModel = AdminViewModel(api, verificarStockBajo, catalog)
 }

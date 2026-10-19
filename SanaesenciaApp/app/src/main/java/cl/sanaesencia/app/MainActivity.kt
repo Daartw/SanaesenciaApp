@@ -1,3 +1,4 @@
+
 package cl.sanaesencia.app
 
 import android.os.Bundle
@@ -16,15 +17,14 @@ class MainActivity : ComponentActivity() {
     private lateinit var container: AppContainer
     private lateinit var privacyManager: PrivacyManager
 
-    override fun onCreate(state: Bundle?) {
-        super.onCreate(state)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
 
         container = AppContainer(applicationContext)
         privacyManager = PrivacyManager(applicationContext)
 
         setContent {
             SanaesenciaTheme {
-
                 val accepted by privacyManager.accepted
                     .collectAsState(initial = false)
 
@@ -36,7 +36,9 @@ class MainActivity : ComponentActivity() {
                         scope = scope
                     )
                 } else {
-                    SanaesenciaNavGraph(container)
+                    SanaesenciaNavGraph(
+                        container = container
+                    )
                 }
             }
         }

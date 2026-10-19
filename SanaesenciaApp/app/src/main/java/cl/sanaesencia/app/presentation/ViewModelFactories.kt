@@ -44,6 +44,7 @@ class AgendaFactory(private val repo: CitaRepository) : ViewModelProvider.Factor
 class AdminFactory(
     private val api: SanaesenciaApi,
     private val stockBajo: cl.sanaesencia.app.domain.usecase.VerificarStockBajoUseCase,
+    private val catalog: CatalogRepository? = null,
 ) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T = AdminViewModel(api, stockBajo) as T
+    override fun <T : ViewModel> create(modelClass: Class<T>): T = AdminViewModel(api, stockBajo, catalog) as T
 }

@@ -1,37 +1,22 @@
 package cl.sanaesencia.app.ui.navigation
 
+import android.util.Log
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+
 import cl.sanaesencia.app.AppContainer
 import cl.sanaesencia.app.domain.model.RolUsuario
-import cl.sanaesencia.app.domain.model.Usuario
-import cl.sanaesencia.app.presentation.AdminFactory
-import cl.sanaesencia.app.presentation.AgendaFactory
-import cl.sanaesencia.app.presentation.AgendaViewModel
-import cl.sanaesencia.app.presentation.CartFactory
-import cl.sanaesencia.app.presentation.CartViewModel
-import cl.sanaesencia.app.presentation.CatalogFactory
-import cl.sanaesencia.app.presentation.CatalogViewModel
-import cl.sanaesencia.app.presentation.CitasFactory
-import cl.sanaesencia.app.presentation.CitasViewModel
-import cl.sanaesencia.app.presentation.LoginFactory
-import cl.sanaesencia.app.presentation.LoginViewModel
-import cl.sanaesencia.app.presentation.PerfilFactory
-import cl.sanaesencia.app.presentation.PerfilViewModel
 import cl.sanaesencia.app.ui.admin.AdminDashboardScreen
-import cl.sanaesencia.app.ui.admin.AdminViewModel
-import cl.sanaesencia.app.ui.agenda.AgendaScreen
 import cl.sanaesencia.app.ui.auth.LoginScreen
 import cl.sanaesencia.app.ui.carrito.CartScreen
 import cl.sanaesencia.app.ui.citas.AgendarScreen
@@ -42,257 +27,286 @@ import cl.sanaesencia.app.ui.home.ProfessionalHomeScreen
 import cl.sanaesencia.app.ui.perfil.PerfilScreen
 import cl.sanaesencia.app.ui.profesionales.ProfesionalesScreen
 import cl.sanaesencia.app.ui.tienda.TiendaScreen
+
 import kotlinx.coroutines.launch
 
 object Routes {
     const val LOGIN = "login"
     const val HOME = "home"
-    const val PROFESSIONAL_HOME = "professional_home"
-    const val PROF = "profesionales"
+    const val PROFESIONALES = "profesionales"
     const val TIENDA = "tienda"
     const val PERFIL = "perfil"
     const val ADMIN = "admin"
     const val AGENDA = "agenda"
     const val CITAS = "citas"
-    const val AGENDAR = "agendar/{profesionalId}"
     const val CARRITO = "carrito"
+    const val AGENDAR = "agendar/{profesionalId}"
+    const val PROF = PROFESIONALES
+    const val PROFESSIONAL_HOME = AGENDA
+    const val AGENDA_DETALLE = "agenda_detalle"
 }
 
 @Composable
-fun SanaesenciaNavGraph(
-    container: AppContainer,
-) {
-    val nav = rememberNavController()
+fun SanaesenciaNavGraph(container: AppContainer) {
+    val navController = rememberNavController()
     val scope = rememberCoroutineScope()
 
-    val cartVm: CartViewModel = viewModel(
-        factory = CartFactory(
-            container.cart,
-            container.pedidos,
-        ),
-    )
+    fun logout() {
+        scope.launch {
+            Log.d("SanaesenciaLogout", "Inicio del cierre de sesión")
 
-    val backStackEntry =
-        nav.currentBackStackEntryAsState().value
+            // 1. Resetear el estado del LoginViewModel para evitar la redirección automática al volver al Login.
+            container.loginViewModel.resetState()
 
-    val route = backStackEntry?.destination?.route
-    val session by container.sessionManager.session.collectAsState(initial = null)
-
-    val showBottomBar =
-        route != Routes.LOGIN &&
-                route != Routes.AGENDAR &&
-                route != Routes.CARRITO &&
-                route != Routes.ADMIN
-
-    Scaffold(
-        containerColor = androidx.compose.ui.graphics.Color.Transparent,
-        bottomBar = {
-            if (showBottomBar) {
-                SanaesenciaBottomBar(
-                    nav = nav,
-                    role = session?.role,
+            // 2. Eliminar la sesión guardada en DataStore.
+            try {
+                container.sessionManager.clear()
+                Log.d(
+                    "SanaesenciaLogout",
+                    "Sesión eliminada correctamente"
                 )
+            } catch (error: Exception) {
+                Log.e(
+                    "SanaesenciaLogout",
+                    "Error al eliminar la sesión",
+                    error
+                )
+                return@launch
             }
-        },
-    ) { padding ->
-        NavHost(
-            navController = nav,
-            startDestination = Routes.LOGIN,
-            modifier = Modifier.padding(padding),
-        ) {
-            composable(Routes.LOGIN) {
-                val vm: LoginViewModel = viewModel(
-                    factory = LoginFactory(container.auth),
-                )
 
-                LoginScreen(vm) { response ->
-                    navigateForRole(
-                        nav = nav,
-                        role = response.rol,
-                        clearBackStack = true,
-                    )
+            // 3. Volver al Login y limpiar el historial de navegación.
+            try {
+                navController.navigate(Routes.LOGIN) {
+                    popUpTo(navController.graph.id) {
+                        inclusive = true
+                    }
+                    launchSingleTop = true
                 }
-            }
 
-            composable(Routes.PROFESSIONAL_HOME) {
-                val vm: AgendaViewModel = viewModel(
-                    factory = AgendaFactory(container.citas),
+                Log.d(
+                    "SanaesenciaLogout",
+                    "Navegación al Login solicitada"
                 )
-
-                ProfessionalHomeScreen(
-                    vm = vm,
-                    onAgenda = { nav.navigate(Routes.AGENDA) },
-                    onProfile = { nav.navigate(Routes.PERFIL) },
-                )
-            }
-
-            composable(Routes.HOME) {
-                HomeScreen(
-                    onProf = {
-                        nav.navigate(Routes.PROF)
-                    },
-                    onShop = {
-                        nav.navigate(Routes.TIENDA)
-                    },
-                    onProfile = {
-                        nav.navigate(Routes.PERFIL)
-                    },
-                    onAppointments = {
-                        nav.navigate(Routes.CITAS)
-                    },
+            } catch (error: Exception) {
+                Log.e(
+                    "SanaesenciaLogout",
+                    "Error al navegar al Login",
+                    error
                 )
             }
+        }
+    }
 
-            composable(Routes.PROF) {
-                val vm: CatalogViewModel = viewModel(
-                    factory = CatalogFactory(container.catalog),
-                )
+    NavHost(
+        navController = navController,
+        startDestination = Routes.LOGIN
+    ) {
+        // LOGIN
+        composable(Routes.LOGIN) {
+            LoginScreen(
+                vm = container.loginViewModel,
+                onLogged = { response ->
+                    val destination = when (response.rol) {
+                        RolUsuario.ADMIN -> Routes.ADMIN
+                        RolUsuario.PROFESIONAL -> Routes.AGENDA
+                        RolUsuario.PACIENTE -> Routes.HOME
+                    }
 
-                ProfesionalesScreen(vm) { id ->
-                    nav.navigate("agendar/$id")
-                }
-            }
+                    container.loginViewModel.resetState()
 
-            composable(Routes.TIENDA) {
-                val vm: CatalogViewModel = viewModel(
-                    factory = CatalogFactory(container.catalog),
-                )
-
-                TiendaScreen(
-                    vm = vm,
-                    cartVm = cartVm,
-                    onCart = {
-                        nav.navigate(Routes.CARRITO)
-                    },
-                    isStockBajo = container.verificarStockBajo::invoke,
-                )
-            }
-
-            composable(Routes.CARRITO) {
-                CartScreen(cartVm) {
-                    nav.popBackStack()
-                }
-            }
-
-            composable(Routes.CITAS) {
-                val vm: CitasViewModel = viewModel(
-                    factory = CitasFactory(
-                        container.citas,
-                        container.agendarCita,
-                    ),
-                )
-
-                CitasScreen(
-                    vm = vm,
-                    onNew = {
-                        nav.navigate(Routes.PROF)
-                    },
-                )
-            }
-
-            composable(Routes.AGENDAR) { entry ->
-                val id = entry.arguments
-                    ?.getString("profesionalId")
-                    ?.toLongOrNull()
-                    ?: 0L
-
-                val vm: CitasViewModel = viewModel(
-                    factory = CitasFactory(
-                        container.citas,
-                        container.agendarCita,
-                    ),
-                )
-
-                AgendarScreen(
-                    profesionalId = id,
-                    vm = vm,
-                ) {
-                    nav.popBackStack()
-                }
-            }
-
-            composable(Routes.PERFIL) {
-                val vm: PerfilViewModel = viewModel(
-                    factory = PerfilFactory(container.auth),
-                )
-
-                PerfilScreen(
-                    vm = vm,
-                    onLogout = {
-                        scope.launch {
-                            container.auth.logout()
-                            nav.navigate(Routes.LOGIN) {
-                                popUpTo(0)
-                                launchSingleTop = true
-                            }
+                    navController.navigate(destination) {
+                        popUpTo(Routes.LOGIN) {
+                            inclusive = true
                         }
-                    },
-                )
-            }
-
-            composable(Routes.AGENDA) {
-                val vm: AgendaViewModel = viewModel(
-                    factory = AgendaFactory(container.citas),
-                )
-
-                AgendaScreen(vm) {
-                    scope.launch {
-                        container.auth.logout()
-
-                        nav.navigate(Routes.LOGIN) {
-                            popUpTo(0)
-                        }
+                        launchSingleTop = true
                     }
                 }
-            }
+            )
+        }
 
-            composable(Routes.ADMIN) {
-                val vm: AdminViewModel = viewModel(
-                    factory = AdminFactory(
-                        container.api,
-                        container.verificarStockBajo,
-                    ),
-                )
-
-                AdminDashboardScreen(
-                    vm = vm,
-                    onProfile = { nav.navigate(Routes.PERFIL) },
-                    onLogout = {
-                        scope.launch {
-                            container.auth.logout()
-                            nav.navigate(Routes.LOGIN) {
-                                popUpTo(0)
-                                launchSingleTop = true
-                            }
-                        }
+        // INICIO DEL PACIENTE
+        composable(Routes.HOME) {
+            ScreenWithBottomBar(
+                navController = navController,
+                role = RolUsuario.PACIENTE
+            ) {
+                HomeScreen(
+                    onProf = {
+                        navController.navigate(Routes.PROFESIONALES)
                     },
+                    onShop = {
+                        navController.navigate(Routes.TIENDA)
+                    },
+                    onProfile = {
+                        navController.navigate(Routes.PERFIL)
+                    },
+                    onAppointments = {
+                        navController.navigate(Routes.CITAS)
+                    }
                 )
             }
+        }
+
+        // PROFESIONALES
+        composable(Routes.PROFESIONALES) {
+            ScreenWithBottomBar(
+                navController = navController,
+                role = RolUsuario.PACIENTE
+            ) {
+                ProfesionalesScreen(
+                    vm = container.catalogViewModel,
+                    onAgendar = { id ->
+                        navController.navigate("agendar/$id")
+                    }
+                )
+            }
+        }
+
+        // TIENDA
+        composable(Routes.TIENDA) {
+            ScreenWithBottomBar(
+                navController = navController,
+                role = RolUsuario.PACIENTE
+            ) {
+                TiendaScreen(
+                    vm = container.catalogViewModel,
+                    cartVm = container.cartViewModel,
+                    onCart = {
+                        navController.navigate(Routes.CARRITO)
+                    },
+                    isStockBajo = { stock ->
+                        container.verificarStockBajo(stock)
+                    }
+                )
+            }
+        }
+
+        // CARRITO
+        composable(Routes.CARRITO) {
+            CartScreen(
+                vm = container.cartViewModel,
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // CITAS
+        composable(Routes.CITAS) {
+            ScreenWithBottomBar(
+                navController = navController,
+                role = RolUsuario.PACIENTE
+            ) {
+                CitasScreen(
+                    vm = container.citasViewModel,
+                    onNew = {
+                        navController.navigate(Routes.PROFESIONALES)
+                    }
+                )
+            }
+        }
+
+        // AGENDAR UNA CITA
+        composable(
+            route = Routes.AGENDAR,
+            arguments = listOf(
+                navArgument("profesionalId") {
+                    type = NavType.LongType
+                }
+            )
+        ) { entry ->
+            val profesionalId =
+                entry.arguments?.getLong("profesionalId")
+                    ?: return@composable
+
+            AgendarScreen(
+                profesionalId = profesionalId,
+                vm = container.citasViewModel,
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // PERFIL
+        composable(Routes.PERFIL) {
+            ScreenWithBottomBar(
+                navController = navController,
+                role = RolUsuario.PACIENTE
+            ) {
+                PerfilScreen(
+                    vm = container.perfilViewModel,
+                    onLogout = {
+                        logout()
+                    }
+                )
+            }
+        }
+
+        // ADMINISTRADOR
+        composable(Routes.ADMIN) {
+            AdminDashboardScreen(
+                vm = container.adminViewModel,
+                onLogout = {
+                    Log.d(
+                        "SanaesenciaLogout",
+                        "AdminDashboard llamó a onLogout"
+                    )
+                    logout()
+                }
+            )
+        }
+
+        // INICIO DEL PROFESIONAL
+        composable(Routes.AGENDA) {
+            ScreenWithBottomBar(
+                navController = navController,
+                role = RolUsuario.PROFESIONAL
+            ) {
+                ProfessionalHomeScreen(
+                    vm = container.agendaViewModel,
+                    onAgenda = {
+                        navController.navigate(
+                            Routes.AGENDA_DETALLE
+                        )
+                    },
+                    onProfile = {
+                        navController.navigate(Routes.PERFIL)
+                    }
+                )
+            }
+        }
+
+        // AGENDA DEL PROFESIONAL
+        composable(Routes.AGENDA_DETALLE) {
+            cl.sanaesencia.app.ui.agenda.AgendaScreen(
+                vm = container.agendaViewModel,
+                onLogout = {
+                    logout()
+                }
+            )
         }
     }
 }
 
-private fun navigateForRole(
-    nav: NavHostController,
+@Composable
+private fun ScreenWithBottomBar(
+    navController: NavHostController,
     role: RolUsuario,
-    clearBackStack: Boolean,
+    content: @Composable () -> Unit
 ) {
-    val target = when (
-        Usuario.desdeRol(role).pantallaInicial()
-    ) {
-        "home" -> Routes.HOME
-        "agenda" -> Routes.PROFESSIONAL_HOME
-        "admin" -> Routes.ADMIN
-        else -> Routes.LOGIN
-    }
-
-    nav.navigate(target) {
-        if (clearBackStack) {
-            popUpTo(Routes.LOGIN) {
-                inclusive = true
-            }
+    Scaffold(
+        bottomBar = {
+            SanaesenciaBottomBar(
+                nav = navController,
+                role = role
+            )
         }
-
-        launchSingleTop = true
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier.padding(innerPadding)
+        ) {
+            content()
+        }
     }
 }

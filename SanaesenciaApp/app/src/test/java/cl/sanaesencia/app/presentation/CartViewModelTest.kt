@@ -2,7 +2,11 @@ package cl.sanaesencia.app.presentation
 
 import cl.sanaesencia.app.data.local.CarritoDao
 import cl.sanaesencia.app.data.local.CarritoItemEntity
+import cl.sanaesencia.app.data.remote.EstadoBoxRequest
 import cl.sanaesencia.app.data.remote.PedidoResponse
+import cl.sanaesencia.app.data.remote.ProductoAdminRequest
+import cl.sanaesencia.app.data.remote.ProfesionalAdminRequest
+import cl.sanaesencia.app.data.remote.PromocionRequest
 import cl.sanaesencia.app.data.remote.SanaesenciaApi
 import cl.sanaesencia.app.data.repository.CartRepository
 import cl.sanaesencia.app.data.repository.PedidoRepository
@@ -101,9 +105,13 @@ class CartViewModelTest {
         override suspend fun misCitas() = TODO()
         override suspend fun cancelarCita(id: Long) = TODO()
         override suspend fun reagendar(id: Long, request: cl.sanaesencia.app.data.remote.ReagendarCitaRequest) = TODO()
-        override suspend fun disponibilidad(profesionalId: Long, fecha: LocalDate) = TODO()
+        override suspend fun disponibilidad(profesionalId: Long, fecha: String) = TODO()
         override suspend fun agendaProfesional() = TODO()
         override suspend fun historialPaciente(pacienteId: Long) = TODO()
+        override suspend fun citasPaciente(pacienteId: Long) = TODO()
+        override suspend fun citasProfesional(profesionalId: Long) = TODO()
+        override suspend fun promociones() = TODO()
+        override suspend fun crearPromocion(request: PromocionRequest) = TODO()
         override suspend fun actualizarEstado(id: Long, request: cl.sanaesencia.app.data.remote.EstadoCitaRequest) = TODO()
         override suspend fun crearPedido(request: cl.sanaesencia.app.data.remote.CrearPedidoRequest) = TODO()
         override suspend fun misPedidos() = TODO()
@@ -111,10 +119,8 @@ class CartViewModelTest {
         override suspend fun adminDesercion() = TODO()
         override suspend fun adminProfesionales() = TODO()
         override suspend fun adminBoxes() = TODO()
-        override suspend fun adminCrearProducto(request: cl.sanaesencia.app.data.remote.ProductoAdminRequest) = TODO()
-        override suspend fun adminEditarProducto(id: Long, request: cl.sanaesencia.app.data.remote.ProductoAdminRequest) = TODO()
-        override suspend fun adminBox(id: Long, request: cl.sanaesencia.app.data.remote.EstadoBoxRequest) = TODO()
-        override suspend fun adminCrearProfesional(request: cl.sanaesencia.app.data.remote.ProfesionalAdminRequest) = TODO()
-        override suspend fun adminEstadoProfesional(id: Long, request: Map<String, String>) = TODO()
+        override suspend fun adminCrearProducto(request: ProductoAdminRequest) = TODO()
+        override suspend fun adminBox(id: Long, request: EstadoBoxRequest) = TODO()
+        override suspend fun adminCrearProfesional(request: ProfesionalAdminRequest) = TODO()
     }
 }

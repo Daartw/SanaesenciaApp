@@ -27,6 +27,14 @@ class LoginViewModel(private val repo: AuthRepository) : BaseViewModel() {
         if (_errors.value.hasErrors) return
         viewModelScope.launch { ejecutar(state) { repo.login(email.value.trim(), password.value) } }
     }
+
+    fun resetState() {
+        email.value = ""
+        password.value = ""
+        state.value = UiState.Vacio
+        _errors.value = LoginErrors()
+    }
+
     private fun invalid(result: cl.sanaesencia.app.domain.validacion.ResultadoValidacion) =
         (result as? cl.sanaesencia.app.domain.validacion.ResultadoValidacion.Invalido)?.mensaje
 }
