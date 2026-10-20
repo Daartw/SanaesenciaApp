@@ -102,23 +102,21 @@ fun PerfilScreen(
         ) {
 
             val perfil =
-                (state as? UiState.Exito<PerfilResponse>)?.datos
+                (state as UiState.Exito<PerfilResponse>).datos
 
-            if (perfil != null) {
-                PerfilForm(
-                    perfil = perfil,
-                    vm = vm,
-                    onLogout = onLogout,
-                    onWhatsApp = {
-                        ContactService.openWhatsApp(context)
-                    },
-                    onPrivacy = {
-                        showPrivacy = true
-                    },
-                    snackbar = snackbar,
-                    modifier = Modifier.padding(padding),
-                )
-            }
+            PerfilForm(
+                perfil = perfil,
+                vm = vm,
+                onLogout = onLogout,
+                onWhatsApp = {
+                    ContactService.openWhatsApp(context)
+                },
+                onPrivacy = {
+                    showPrivacy = true
+                },
+                snackbar = snackbar,
+                modifier = Modifier.padding(padding),
+            )
         }
     }
 
@@ -152,7 +150,7 @@ private fun PerfilForm(
      * Por eso usamos orEmpty().
      */
     var rut by remember {
-        mutableStateOf(formatearRut(perfil.rut.orEmpty()))
+        mutableStateOf(perfil.rut.orEmpty())
     }
 
     var nombre by remember {
@@ -165,11 +163,9 @@ private fun PerfilForm(
 
     var fechaNacimiento by remember {
         mutableStateOf(
-            formatearFecha(
-                perfil.fechaNacimiento?.format(
-                    PerfilViewModel.FECHA_UI
-                ).orEmpty()
-            )
+            perfil.fechaNacimiento?.format(
+                PerfilViewModel.FECHA_UI
+            ).orEmpty()
         )
     }
 
@@ -507,10 +503,9 @@ private fun PerfilForm(
                 CampoFormulario(
                     "RUT",
                     rut,
-                    { input ->
-                        val formatted = formatearRut(input)
-                        rut = formatted
-                        vm.validarCampoRut(formatted)
+                    {
+                        rut = it
+                        vm.validarCampoRut(it)
                     },
                     errors.rut
                 )
@@ -539,10 +534,9 @@ private fun PerfilForm(
                 CampoFormulario(
                     "Fecha de nacimiento",
                     fechaNacimiento,
-                    { input ->
-                        val formatted = formatearFecha(input)
-                        fechaNacimiento = formatted
-                        vm.validarCampoFechaNacimiento(formatted)
+                    {
+                        fechaNacimiento = it
+                        vm.validarCampoFechaNacimiento(it)
                     },
                     errors.fechaNacimiento,
                     keyboard = KeyboardType.Number,
@@ -781,34 +775,3 @@ private fun copyCameraToProfilePhoto(
                 File(it).length() > 0
             )
         }
-
-fun formatearRut(raw: String): String {
-    val limpio = raw.replace(".", "").replace("-", "").uppercase().filter { it.isDigit() || it == 'K' }
-    if (limpio.isEmpty()) return ""
-    if (limpio.length == 1) return limpio
-
-    val recortado = if (limpio.length > 9) limpio.substring(0, 9) else limpio
-    val dv = recortado.last()
-    val cuerpo = recortado.substring(0, recortado.length - 1)
-
-    val sb = StringBuilder()
-    var count = 0
-    for (i in cuerpo.length - 1 downTo 0) {
-        if (count > 0 && count % 3 == 0) {
-            sb.append('.')
-        }
-        sb.append(cuerpo[i])
-        count++
-    }
-    return "${sb.reverse()}-$dv"
-}
-
-fun formatearFecha(raw: String): String {
-    val digitos = raw.filter { it.isDigit() }.take(8)
-    return when {
-        digitos.isEmpty() -> ""
-        digitos.length <= 2 -> digitos
-        digitos.length <= 4 -> "${digitos.substring(0, 2)}/${digitos.substring(2)}"
-        else -> "${digitos.substring(0, 2)}/${digitos.substring(2, 4)}/${digitos.substring(4)}"
-    }
-}

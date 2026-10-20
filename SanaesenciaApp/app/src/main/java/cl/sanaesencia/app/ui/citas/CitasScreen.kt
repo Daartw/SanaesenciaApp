@@ -25,7 +25,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import cl.sanaesencia.app.data.remote.CitaResponse
 import cl.sanaesencia.app.domain.model.EstadoCita
 import cl.sanaesencia.app.presentation.CitasViewModel
 import cl.sanaesencia.app.presentation.UiState
@@ -68,7 +67,7 @@ fun CitasScreen(
                 empty = state is UiState.Vacio,
                 onRetry = vm::cargar,
             ) {
-                val citas = (state as? UiState.Exito<List<CitaResponse>>)?.datos ?: emptyList()
+                val citas = (state as UiState.Exito).datos
 
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp),

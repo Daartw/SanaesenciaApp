@@ -11,45 +11,30 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.NearMe
-import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.PersonSearch
 import androidx.compose.material.icons.filled.PrivacyTip
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingBag
-import androidx.compose.material.icons.filled.Spa
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -62,19 +47,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import cl.sanaesencia.app.services.ContactService
 import cl.sanaesencia.app.services.LocationService
 import cl.sanaesencia.app.ui.privacy.PrivacyPolicyDialog
-import cl.sanaesencia.app.ui.theme.WhatsAppGreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -122,7 +101,7 @@ fun HomeScreen(
                 }
 
                 locationText = if (sede == null) {
-                    "Sede en Av. Caupolicán 220, Los Vilos"
+                    "No se pudo geocodificar la sede; usa Cómo llegar"
                 } else {
                     val distance = distanceKm(
                         location.latitude,
@@ -174,371 +153,215 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // HEADER WITH LOGO BADGE, GREETING & PROFILE ACTION
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.Default.Spa,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp),
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text(
-                        "¡Bienvenido/a!",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Text(
-                        "¿Cómo te sientes hoy?",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            IconButton(onClick = onProfile) {
-                Icon(
-                    imageVector = Icons.Default.AccountCircle,
-                    contentDescription = "Perfil",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(32.dp),
-                )
-            }
-        }
-
-        // QUICK SEARCH BAR
-        Card(
-            onClick = onProf,
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    Icons.Default.Search,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-                Spacer(Modifier.width(12.dp))
+            Column {
                 Text(
-                    "Buscar profesional o especialidad...",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
+                    "Hola, bienvenido/a",
+                    style = MaterialTheme.typography.headlineSmall,
                 )
-                Icon(
-                    Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text("¿Cómo te sientes hoy?")
             }
-        }
 
-        // SPECIALTIES ROW
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                "Especialidades destacadas",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
+            Icon(
+                Icons.Default.PersonSearch,
+                contentDescription = "Buscar profesionales",
+                modifier = Modifier.size(32.dp),
+                tint = MaterialTheme.colorScheme.primary,
             )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FilterChip(
-                    selected = false,
-                    onClick = onProf,
-                    label = { Text("Psicología") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                    ),
-                    modifier = Modifier.weight(1f),
-                )
-                FilterChip(
-                    selected = false,
-                    onClick = onProf,
-                    label = { Text("Nutrición") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                    ),
-                    modifier = Modifier.weight(1f),
-                )
-                FilterChip(
-                    selected = false,
-                    onClick = onProf,
-                    label = { Text("Terapias") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                    ),
-                    modifier = Modifier.weight(1f),
-                )
-            }
         }
 
-        // HERO CARD WITH GRADIENT
+        OutlinedButton(
+            onClick = onProf,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 52.dp),
+            shape = RoundedCornerShape(18.dp),
+        ) {
+            Icon(Icons.Default.PersonSearch, contentDescription = null)
+            Text(
+                "Buscar profesional o especialidad",
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+
+        Text(
+            "Especialidades destacadas",
+            style = MaterialTheme.typography.titleMedium,
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FilterChip(
+                selected = false,
+                onClick = onProf,
+                label = { Text("Psicología") },
+                modifier = Modifier.weight(1f),
+            )
+            FilterChip(
+                selected = false,
+                onClick = onProf,
+                label = { Text("Nutrición") },
+                modifier = Modifier.weight(1f),
+            )
+            FilterChip(
+                selected = false,
+                onClick = onProf,
+                label = { Text("Terapias") },
+                modifier = Modifier.weight(1f),
+            )
+        }
+
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .animateContentSize(),
-            shape = RoundedCornerShape(28.dp),
+            shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Color.Transparent,
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
             ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primaryContainer,
-                                MaterialTheme.colorScheme.tertiaryContainer,
-                            ),
-                        ),
-                    )
-                    .padding(20.dp),
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "Tu bienestar en buenas manos",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                    Text(
-                        "Encuentra profesionales calificados, agenda tus horas fácilmente y adquiere productos naturales para tu salud.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Button(
-                        onClick = onProf,
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp),
-                    ) {
-                        Text(
-                            "Ver Profesionales",
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
+            Column(Modifier.padding(16.dp)) {
+                Text(
+                    "Tu bienestar en buenas manos",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                Text(
+                    "Encuentra profesionales, agenda tus horas y gestiona tus productos de bienestar desde un solo lugar.",
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                Button(
+                    onClick = onProf,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp)
+                        .heightIn(min = 48.dp),
+                ) {
+                    Text("Buscar profesionales")
                 }
             }
         }
 
-        // QUICK ACTION CARDS
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             QuickActionCard(
-                title = "Mis Horas",
-                subtitle = "Revisar citas",
+                title = "Mis horas",
                 icon = Icons.Default.CalendarMonth,
                 onClick = onAppointments,
                 modifier = Modifier.weight(1f),
             )
             QuickActionCard(
                 title = "Tienda",
-                subtitle = "Productos",
                 icon = Icons.Default.ShoppingBag,
                 onClick = onShop,
                 modifier = Modifier.weight(1f),
             )
         }
 
-        // LOCATION & SEDE CARD
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
             ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
+            Column(Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.secondaryContainer),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary,
-                        )
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            "Sede Sanaesencia",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            "Av. Caupolicán 220, Los Vilos",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    Icon(Icons.Default.LocationOn, contentDescription = null)
+                    Text(
+                        "  Sede Sanaesencia",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
                 }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                Text(
+                    "Av. Caupolicán 220, Los Vilos",
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                OutlinedButton(
+                    onClick = ::requestOrCalculate,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .heightIn(min = 48.dp),
                 ) {
-                    OutlinedButton(
-                        onClick = ::requestOrCalculate,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp),
-                    ) {
-                        Icon(Icons.Default.NearMe, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Distancia")
-                    }
-
-                    Button(
-                        onClick = {
-                            context.startActivity(
-                                Intent(
-                                    Intent.ACTION_VIEW,
-                                    Uri.parse("geo:0,0?q=Caupolicán+220,+Los+Vilos"),
-                                ),
-                            )
-                        },
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp),
-                    ) {
-                        Icon(Icons.Default.Directions, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Cómo llegar")
-                    }
+                    Text("Consultar distancia")
                 }
-
                 AnimatedContent(
                     targetState = locationText,
                     label = "distancia",
-                ) { text ->
-                    Text(
-                        text,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-            }
-        }
-
-        // WHATSAPP CONTACT CARD
-        Card(
-            onClick = { ContactService.openWhatsApp(context) },
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = WhatsAppGreen.copy(alpha = 0.12f),
-            ),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(WhatsAppGreen),
-                    contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        Icons.Default.Phone,
-                        contentDescription = null,
-                        tint = Color.White,
+                    Text(
+                        it,
+                        modifier = Modifier.padding(top = 6.dp),
                     )
                 }
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "¿Dudas o consultas?",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        "Habla con nosotros por WhatsApp · +56 9 2366 5073",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(
+                            Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse("geo:0,0?q=Caupolicán+220,+Los+Vilos"),
+                            ),
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
+                ) {
+                    Text("Cómo llegar")
                 }
-                Icon(
-                    Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = WhatsAppGreen,
-                )
             }
         }
 
-        // PRIVACY & PERMISSION ACCESS
         OutlinedButton(
-            onClick = { showPrivacy = true },
-            shape = RoundedCornerShape(16.dp),
+            onClick = { ContactService.openWhatsApp(context) },
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp),
         ) {
-            Icon(Icons.Default.PrivacyTip, contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Políticas de Privacidad y Datos")
+            Icon(Icons.Default.Phone, contentDescription = null)
+            Text(
+                "Contactar por WhatsApp · +56 9 2366 5073",
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+
+        OutlinedButton(
+            onClick = onProfile,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp),
+        ) {
+            Text("Perfil y consentimiento")
+        }
+
+        OutlinedButton(
+            onClick = { showPrivacy = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp),
+        ) {
+            Icon(Icons.Default.PrivacyTip, contentDescription = null)
+            Text(
+                "Políticas de privacidad y datos",
+                modifier = Modifier.padding(start = 8.dp),
+            )
         }
 
         Text(
-            "Demo académica: utiliza únicamente datos ficticios o anonimizados.",
+            "Demo académica: utiliza únicamente datos ficticios o anonimizados; no ingreses datos reales.",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            modifier = Modifier.padding(bottom = 8.dp),
         )
 
         if (explainPermission) {
@@ -570,7 +393,7 @@ fun HomeScreen(
                 title = { Text("Ubicación") },
                 text = {
                     Text(
-                        "Usaremos tu ubicación solo para calcular la distancia hasta la sede de Sanaesencia en Los Vilos.",
+                        "Usaremos tu ubicación solo para calcular la distancia hasta la sede de Sanaesencia en Los Vilos y ayudarte a llegar.",
                     )
                 },
             )
@@ -587,7 +410,7 @@ fun HomeScreen(
                     )
                 },
             ) {
-                Text("Permiso denegado: abrir ajustes de la app")
+                Text("Permiso denegado: abrir ajustes")
             }
         }
     }
@@ -602,48 +425,24 @@ fun HomeScreen(
 @Composable
 private fun QuickActionCard(
     title: String,
-    subtitle: String,
-    icon: ImageVector,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
+        modifier = modifier
+            .heightIn(min = 112.dp),
+        onClick = onClick,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            }
-            Column {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Icon(icon, contentDescription = null)
+            Text(title, style = MaterialTheme.typography.titleMedium)
         }
     }
 }

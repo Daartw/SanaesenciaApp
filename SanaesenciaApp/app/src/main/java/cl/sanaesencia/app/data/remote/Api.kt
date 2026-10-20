@@ -1,4 +1,3 @@
-
 package cl.sanaesencia.app.data.remote
 
 import cl.sanaesencia.app.domain.model.EstadoCita
@@ -6,7 +5,6 @@ import cl.sanaesencia.app.domain.model.EstadoProfesional
 import cl.sanaesencia.app.domain.model.ModalidadCita
 import cl.sanaesencia.app.domain.model.RolUsuario
 import retrofit2.http.Body
-import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -16,9 +14,9 @@ import retrofit2.http.Query
 
 interface SanaesenciaApi {
 
-    // =========================================================
+    // -------------------------------------------------------------------------
     // AUTENTICACIÓN
-    // =========================================================
+    // -------------------------------------------------------------------------
 
     @POST("auth/login")
     suspend fun login(
@@ -34,49 +32,39 @@ interface SanaesenciaApi {
     ): PerfilResponse
 
 
-    // =========================================================
+    // -------------------------------------------------------------------------
     // PROFESIONALES
-    // =========================================================
+    // -------------------------------------------------------------------------
 
     @GET("profesionales")
     suspend fun profesionales(): List<ProfesionalResponse>
 
-    @GET("citas/disponibilidad")
+    @GET("profesionales/{id}/disponibilidad")
     suspend fun disponibilidad(
-        @Query("profesionalId") profesionalId: Long,
+        @Path("id") profesionalId: Long,
         @Query("fecha") fecha: String
     ): List<DisponibilidadResponse>
 
 
-    // =========================================================
+    // -------------------------------------------------------------------------
     // BOXES
-    // =========================================================
+    // -------------------------------------------------------------------------
 
     @GET("boxes")
     suspend fun boxes(): List<BoxResponse>
 
-    @GET("admin/boxes")
-    suspend fun adminBoxes(): List<BoxResponse>
 
-    // El backend usa PUT /admin/boxes/{id}
-    @PUT("admin/boxes/{id}")
-    suspend fun adminBox(
-        @Path("id") id: Long,
-        @Body request: EstadoBoxRequest
-    ): BoxResponse
-
-
-    // =========================================================
+    // -------------------------------------------------------------------------
     // PRODUCTOS
-    // =========================================================
+    // -------------------------------------------------------------------------
 
     @GET("productos")
     suspend fun productos(): List<ProductoResponse>
 
 
-    // =========================================================
+    // -------------------------------------------------------------------------
     // PROMOCIONES
-    // =========================================================
+    // -------------------------------------------------------------------------
 
     @GET("promociones")
     suspend fun promociones(): List<PromocionResponse>
@@ -87,9 +75,9 @@ interface SanaesenciaApi {
     ): PromocionResponse
 
 
-    // =========================================================
+    // -------------------------------------------------------------------------
     // CITAS
-    // =========================================================
+    // -------------------------------------------------------------------------
 
     @POST("citas")
     suspend fun crearCita(
@@ -99,7 +87,6 @@ interface SanaesenciaApi {
     @GET("citas/mis-citas")
     suspend fun misCitas(): List<CitaResponse>
 
-    // Estas dos rutas deben existir en el backend para funcionar.
     @GET("citas/paciente/{id}")
     suspend fun citasPaciente(
         @Path("id") pacienteId: Long
@@ -110,21 +97,18 @@ interface SanaesenciaApi {
         @Path("id") profesionalId: Long
     ): List<CitaResponse>
 
-    // El backend usa DELETE /citas/{id}
-    @DELETE("citas/{id}")
+    @PATCH("citas/{id}/cancelar")
     suspend fun cancelarCita(
         @Path("id") citaId: Long
     ): Map<String, String>
 
-    // El backend usa PUT /citas/{id}/reagendar
-    @PUT("citas/{id}/reagendar")
+    @PATCH("citas/{id}/reagendar")
     suspend fun reagendar(
         @Path("id") citaId: Long,
         @Body request: ReagendarCitaRequest
     ): CitaResponse
 
-    // El backend usa PUT /citas/{id}/estado
-    @PUT("citas/{id}/estado")
+    @PATCH("citas/{id}/estado")
     suspend fun actualizarEstado(
         @Path("id") citaId: Long,
         @Body request: EstadoCitaRequest
@@ -133,16 +117,15 @@ interface SanaesenciaApi {
     @GET("citas/agenda")
     suspend fun agendaProfesional(): List<CitaResponse>
 
-    // Ruta definida en CitaController
-    @GET("citas/paciente/{pacienteId}/historial")
+    @GET("citas/historial/{pacienteId}")
     suspend fun historialPaciente(
         @Path("pacienteId") pacienteId: Long
     ): List<FichaClinicaResponse>
 
 
-    // =========================================================
+    // -------------------------------------------------------------------------
     // PEDIDOS / CARRITO
-    // =========================================================
+    // -------------------------------------------------------------------------
 
     @POST("pedidos")
     suspend fun crearPedido(
@@ -153,9 +136,18 @@ interface SanaesenciaApi {
     suspend fun misPedidos(): List<PedidoResponse>
 
 
-    // =========================================================
-    // ADMINISTRACIÓN
-    // =========================================================
+    // -------------------------------------------------------------------------
+    // ADMIN
+    // -------------------------------------------------------------------------
+
+    @GET("admin/boxes")
+    suspend fun adminBoxes(): List<BoxResponse>
+
+    @PATCH("admin/boxes/{id}")
+    suspend fun adminBox(
+        @Path("id") id: Long,
+        @Body request: EstadoBoxRequest
+    ): BoxResponse
 
     @GET("admin/profesionales")
     suspend fun adminProfesionales(): List<ProfesionalResponse>
@@ -178,9 +170,9 @@ interface SanaesenciaApi {
 }
 
 
-// =============================================================
+// =============================================================================
 // RESPUESTAS
-// =============================================================
+// =============================================================================
 
 data class LoginResponse(
     val token: String,
@@ -205,10 +197,7 @@ data class ProfesionalResponse(
     val titulo: String,
     val categoriaEspecialidad: String,
     val descripcionEnfoque: String,
-    val certificaciones: String = "",
-    val anosExperiencia: Int = 0,
-    val estado: EstadoProfesional,
-    val fotoUrl: String? = null
+    val estado: EstadoProfesional
 )
 
 data class ProductoResponse(
@@ -217,15 +206,13 @@ data class ProductoResponse(
     val descripcion: String,
     val precio: Long,
     val stock: Int,
-    val imagenUrl: String? = null,
-    val etiquetasTerapeuticas: String,
-    val estaActivo: Boolean = true
+    val etiquetasTerapeuticas: String
 )
 
 data class BoxResponse(
     val id: Long,
     val numeroBox: Int,
-    val nombre: String = "Box $numeroBox",
+    val nombre: String,
     val estaHabilitado: Boolean
 )
 
@@ -257,7 +244,7 @@ data class DisponibilidadResponse(
 )
 
 data class FichaClinicaResponse(
-    val citaId: Long,
+    val id: Long,
     val fecha: String,
     val modalidad: ModalidadCita,
     val estado: EstadoCita,
@@ -280,9 +267,9 @@ data class PedidoItemResponse(
 )
 
 
-// =============================================================
-// SOLICITUDES
-// =============================================================
+// =============================================================================
+// REQUESTS
+// =============================================================================
 
 data class LoginRequest(
     val email: String,
@@ -335,19 +322,18 @@ data class PromocionRequest(
     val porcentajeDescuento: Int
 )
 
-// El backend espera el campo "habilitado".
 data class EstadoBoxRequest(
-    val habilitado: Boolean
+    val estaHabilitado: Boolean
 )
 
 data class ProfesionalAdminRequest(
     val usuarioId: Long,
     val titulo: String,
     val categoriaEspecialidad: String,
-    val descripcionEnfoque: String = "",
-    val certificaciones: String = "",
-    val anosExperiencia: Int = 0,
-    val estado: EstadoProfesional = EstadoProfesional.DISPONIBLE,
+    val descripcionEnfoque: String,
+    val certificaciones: String,
+    val anosExperiencia: Int,
+    val estado: EstadoProfesional,
     val fotoUrl: String? = null
 )
 
@@ -357,14 +343,12 @@ data class ProductoAdminRequest(
     val precio: Long,
     val stock: Int,
     val imagenUrl: String? = null,
-    val etiquetasTerapeuticas: String,
-    val estaActivo: Boolean = true
+    val etiquetasTerapeuticas: String
 )
 
 data class DesercionResponse(
     val pacienteId: Long,
-    val ultimaSesion: String? = null,
-    val diasSinSesion: Long? = null,
-    val estado: String = "",
-    val alerta: Boolean = false
+    val nombrePaciente: String,
+    val diasInactividad: Long,
+    val nivel: String
 )
