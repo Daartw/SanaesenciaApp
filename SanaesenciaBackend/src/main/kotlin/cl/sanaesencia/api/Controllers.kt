@@ -2,6 +2,8 @@ package cl.sanaesencia.api
 
 import cl.sanaesencia.repository.*
 import cl.sanaesencia.service.*
+import cl.sanaesencia.security.NoAutenticadoException
+import cl.sanaesencia.security.SinPermisoException
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 
@@ -33,9 +35,12 @@ class ProductoController(private val repo: ProductoRepository) {
 
 @RestController
 @RequestMapping("/promociones")
-class PromocionController(private val repo: PromocionRepository) {
+class PromocionController(private val repo: PromocionRepository, private val admin: AdminService) {
     @GetMapping fun all() = repo.findAll()
-    @PostMapping fun create(@RequestBody p: cl.sanaesencia.domain.Promocion) = repo.save(p)
+    @PostMapping fun create(@RequestHeader("Authorization", required = false) auth: String?, @RequestBody p: cl.sanaesencia.domain.Promocion): cl.sanaesencia.domain.Promocion {
+        admin.verificarAdmin(auth)
+        return repo.save(p)
+    }
 }
 
 @RestController
@@ -62,7 +67,7 @@ class PedidoController(private val service: PedidoService) {
 @RequestMapping("/admin")
 class AdminController(private val service: AdminService, private val desertion: DesercionService) {
     @GetMapping("/stock-bajo") fun stockBajo(@RequestHeader("Authorization", required = false) auth: String?) = service.stockBajo(auth)
-    @GetMapping("/desercion") fun desercion(@RequestHeader("Authorization", required = false) auth: String?): List<DesercionResponse> { service.profesionales(auth); return desertion.alertas() }
+    @GetMapping("/desercion") fun desercion(@RequestHeader("Authorization", required = false) auth: String?): List<DesercionResponse> { service.verificarAdmin(auth); return desertion.alertas() }
     @GetMapping("/profesionales") fun profesionales(@RequestHeader("Authorization", required = false) auth: String?) = service.profesionales(auth)
     @GetMapping("/boxes") fun boxes(@RequestHeader("Authorization", required = false) auth: String?) = service.boxes(auth)
     @PostMapping("/productos") fun crearProducto(@RequestHeader("Authorization", required = false) auth: String?, @RequestBody r: ProductoAdminRequest) = service.crearProducto(auth,r)
@@ -77,4 +82,12 @@ class ApiExceptionHandler {
     @ExceptionHandler(IllegalArgumentException::class, IllegalStateException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun badRequest(ex: RuntimeException) = mapOf("status" to 400, "mensaje" to (ex.message ?: "Solicitud inválida"))
+
+    @ExceptionHandler(NoAutenticadoException::class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    fun unauthorized(ex: NoAutenticadoException) = mapOf("status" to 401, "mensaje" to (ex.message ?: "Debes iniciar sesión"))
+
+    @ExceptionHandler(SinPermisoException::class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    fun forbidden(ex: SinPermisoException) = mapOf("status" to 403, "mensaje" to (ex.message ?: "No tienes permisos"))
 }

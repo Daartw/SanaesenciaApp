@@ -3,6 +3,7 @@ package cl.sanaesencia.app.presentation
 import androidx.lifecycle.viewModelScope
 
 import cl.sanaesencia.app.data.local.CarritoItemEntity
+import cl.sanaesencia.app.data.remote.mensajeUsuario
 import cl.sanaesencia.app.data.repository.CartRepository
 import cl.sanaesencia.app.data.repository.PedidoRepository
 import cl.sanaesencia.app.domain.model.Producto
@@ -58,7 +59,7 @@ class CartViewModel(
         _paying.value = true
         runCatching { pedidos.pagar(rows) }
             .onSuccess { repo.clear(); message.value = "Pago aprobado y pedido #${it.id} confirmado" }
-            .onFailure { message.value = it.message ?: "No fue posible pagar" }
+            .onFailure { message.value = it.mensajeUsuario("No fue posible procesar el pago") }
             .also { _paying.value = false }
     }
     fun clearMessage() { message.value = null }

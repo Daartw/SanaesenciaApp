@@ -8,64 +8,71 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
-import kotlin.math.cos
-import kotlin.math.sin
 
 @Composable
 fun SanaesenciaBackground(content: @Composable () -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
         Canvas(Modifier.fillMaxSize()) {
+            // Elegant, warm, natural background gradient
             drawRect(
-                brush = Brush.linearGradient(
+                brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFFBCEFFF),
-                        Color(0xFFEAF9FF),
-                        Color(0xFFF8FCFF),
+                        Color(0xFFFAF8F3), // Very soft warm cream
+                        Color(0xFFF5F1E8), // Gentle sage tint cream
+                        Color(0xFFFAF8F5), // Light warm white
                     ),
                 ),
             )
 
-            val radius = 42f
-            val stepX = radius * 1.72f
-            val stepY = radius * 1.5f
-            var row = 0
-            var y = -radius
-            while (y < size.height + radius) {
-                var x = if (row % 2 == 0) -radius else -radius + stepX / 2f
-                while (x < size.width + radius) {
-                    val path = hexagonPath(Offset(x, y), radius)
-                    drawPath(
-                        path = path,
-                        color = Color(0xFF56BFEA).copy(alpha = 0.18f),
-                        style = Stroke(width = 1.5f),
-                    )
-                    drawCircle(
-                        color = Color(0xFF1597D1).copy(alpha = 0.28f),
-                        radius = 3.5f,
-                        center = Offset(x, y),
-                    )
-                    x += stepX
-                }
-                y += stepY
-                row++
-            }
+            // Organic, ambient lighting accents for holistic wellness feel
+            val width = size.width
+            val height = size.height
+
+            // Top-right soft warm amber glow
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFFFCDCD1).copy(alpha = 0.35f),
+                        Color(0xFFFCDCD1).copy(alpha = 0.05f),
+                        Color.Transparent,
+                    ),
+                    center = Offset(width * 0.85f, height * 0.12f),
+                    radius = width * 0.75f,
+                ),
+                center = Offset(width * 0.85f, height * 0.12f),
+                radius = width * 0.75f,
+            )
+
+            // Top-left soft sage green glow
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFFD6E8DC).copy(alpha = 0.40f),
+                        Color(0xFFD6E8DC).copy(alpha = 0.08f),
+                        Color.Transparent,
+                    ),
+                    center = Offset(width * 0.15f, height * 0.35f),
+                    radius = width * 0.85f,
+                ),
+                center = Offset(width * 0.15f, height * 0.35f),
+                radius = width * 0.85f,
+            )
+
+            // Bottom-right eucalyptus teal ambient glow
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFFCDE8E6).copy(alpha = 0.30f),
+                        Color(0xFFCDE8E6).copy(alpha = 0.04f),
+                        Color.Transparent,
+                    ),
+                    center = Offset(width * 0.90f, height * 0.80f),
+                    radius = width * 0.90f,
+                ),
+                center = Offset(width * 0.90f, height * 0.80f),
+                radius = width * 0.90f,
+            )
         }
         content()
     }
-}
-
-private fun hexagonPath(center: Offset, radius: Float): Path {
-    val path = Path()
-    for (i in 0 until 6) {
-        val angle = Math.toRadians((60 * i - 30).toDouble())
-        val point = Offset(
-            center.x + radius * cos(angle).toFloat(),
-            center.y + radius * sin(angle).toFloat(),
-        )
-        if (i == 0) path.moveTo(point.x, point.y) else path.lineTo(point.x, point.y)
-    }
-    path.close()
-    return path
 }

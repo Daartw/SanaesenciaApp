@@ -3,6 +3,7 @@ package cl.sanaesencia.app.presentation
 import androidx.lifecycle.viewModelScope
 import cl.sanaesencia.app.data.remote.ActualizarPerfilRequest
 import cl.sanaesencia.app.data.remote.PerfilResponse
+import cl.sanaesencia.app.data.remote.mensajeUsuario
 import cl.sanaesencia.app.data.repository.AuthRepository
 import cl.sanaesencia.app.domain.validacion.ResultadoValidacion
 import cl.sanaesencia.app.domain.validacion.ValidadorFechaNacimiento
@@ -162,8 +163,7 @@ class PerfilViewModel(
             }.onFailure {
 
                 message.value =
-                    it.message
-                        ?: "No fue posible actualizar el perfil"
+                    it.mensajeUsuario("No fue posible actualizar el perfil")
             }
         }
     }

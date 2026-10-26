@@ -31,15 +31,21 @@ class JwtService(
             .compact()
 
     fun userIdFromBearer(authorization: String?): Long {
-        require(!authorization.isNullOrBlank() && authorization.startsWith("Bearer ")) {
-            "Sesión no autenticada"
+        if (authorization.isNullOrBlank() || !authorization.startsWith("Bearer ")) {
+            throw NoAutenticadoException("Debes iniciar sesión para continuar")
         }
         val token = authorization.removePrefix("Bearer ").trim()
         return runCatching {
             Jwts.parser().verifyWith(key).build().parseSignedClaims(token).payload.subject.toLong()
-        }.getOrElse { throw IllegalArgumentException("Sesión inválida o expirada") }
+        }.getOrElse { throw NoAutenticadoException("Tu sesión expiró. Inicia sesión nuevamente") }
     }
 }
+
+/** 401: no hay token, es inválido o expiró. La app debe volver al login. */
+class NoAutenticadoException(message: String) : RuntimeException(message)
+
+/** 403: hay sesión, pero el rol no tiene permiso para esta acción. */
+class SinPermisoException(message: String = "No tienes permisos para realizar esta acción") : RuntimeException(message)
 
 @Configuration
 class SecurityConfig {

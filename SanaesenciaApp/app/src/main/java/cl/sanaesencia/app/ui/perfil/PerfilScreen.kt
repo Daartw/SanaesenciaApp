@@ -102,21 +102,23 @@ fun PerfilScreen(
         ) {
 
             val perfil =
-                (state as UiState.Exito<PerfilResponse>).datos
+                (state as? UiState.Exito<PerfilResponse>)?.datos
 
-            PerfilForm(
-                perfil = perfil,
-                vm = vm,
-                onLogout = onLogout,
-                onWhatsApp = {
-                    ContactService.openWhatsApp(context)
-                },
-                onPrivacy = {
-                    showPrivacy = true
-                },
-                snackbar = snackbar,
-                modifier = Modifier.padding(padding),
-            )
+            if (perfil != null) {
+                PerfilForm(
+                    perfil = perfil,
+                    vm = vm,
+                    onLogout = onLogout,
+                    onWhatsApp = {
+                        ContactService.openWhatsApp(context)
+                    },
+                    onPrivacy = {
+                        showPrivacy = true
+                    },
+                    snackbar = snackbar,
+                    modifier = Modifier.padding(padding),
+                )
+            }
         }
     }
 
@@ -150,7 +152,7 @@ private fun PerfilForm(
      * Por eso usamos orEmpty().
      */
     var rut by remember {
-        mutableStateOf(perfil.rut.orEmpty())
+        mutableStateOf(formatearRut(perfil.rut.orEmpty()))
     }
 
     var nombre by remember {
@@ -163,9 +165,7 @@ private fun PerfilForm(
 
     var fechaNacimiento by remember {
         mutableStateOf(
-            perfil.fechaNacimiento?.format(
-                PerfilViewModel.FECHA_UI
-            ).orEmpty()
+            fechaIsoAUi(perfil.fechaNacimiento)
         )
     }
 
@@ -177,7 +177,7 @@ private fun PerfilForm(
 
     var photoPath by remember {
         mutableStateOf(
-            loadProfilePhoto(context)
+            loadProfilePhoto(context, perfil.id)
         )
     }
 
@@ -220,6 +220,7 @@ private fun PerfilForm(
             val copied =
                 copyToProfilePhoto(
                     context,
+                    perfil.id,
                     uri
                 )
 
@@ -252,6 +253,7 @@ private fun PerfilForm(
                 val copied =
                     copyCameraToProfilePhoto(
                         context,
+                        perfil.id,
                         source
                     )
 
@@ -503,9 +505,10 @@ private fun PerfilForm(
                 CampoFormulario(
                     "RUT",
                     rut,
-                    {
-                        rut = it
-                        vm.validarCampoRut(it)
+                    { input ->
+                        val formatted = formatearRut(input)
+                        rut = formatted
+                        vm.validarCampoRut(formatted)
                     },
                     errors.rut
                 )
@@ -534,9 +537,10 @@ private fun PerfilForm(
                 CampoFormulario(
                     "Fecha de nacimiento",
                     fechaNacimiento,
-                    {
-                        fechaNacimiento = it
-                        vm.validarCampoFechaNacimiento(it)
+                    { input ->
+                        val formatted = formatearFecha(input)
+                        fechaNacimiento = formatted
+                        vm.validarCampoFechaNacimiento(formatted)
                     },
                     errors.fechaNacimiento,
                     keyboard = KeyboardType.Number,
@@ -707,23 +711,27 @@ private fun PerfilForm(
 // FOTO DE PERFIL
 // ============================================================================
 
+// Cada usuario tiene su propia foto, así al cambiar de cuenta no se ve la foto de otra persona.
 private fun profilePhoto(
-    context: Context
+    context: Context,
+    userId: Long,
 ): File =
     File(
         context.filesDir,
-        "profile_photo.jpg"
+        "profile_photo_$userId.jpg"
     )
 
 private fun loadProfilePhoto(
-    context: Context
+    context: Context,
+    userId: Long,
 ): String? =
-    profilePhoto(context)
+    profilePhoto(context, userId)
         .takeIf(File::exists)
         ?.path
 
 private fun copyToProfilePhoto(
     context: Context,
+    userId: Long,
     uri: Uri
 ): String? =
     runCatching {
@@ -732,12 +740,12 @@ private fun copyToProfilePhoto(
             .openInputStream(uri)
             ?.use { input ->
 
-                profilePhoto(context)
+                profilePhoto(context, userId)
                     .outputStream()
                     .use(input::copyTo)
             }
 
-        profilePhoto(context)
+        profilePhoto(context, userId)
             .takeIf(File::exists)
             ?.path
 
@@ -751,6 +759,7 @@ private fun copyToProfilePhoto(
 
 private fun copyCameraToProfilePhoto(
     context: Context,
+    userId: Long,
     cameraUri: Uri
 ): String? =
     runCatching {
@@ -759,12 +768,12 @@ private fun copyCameraToProfilePhoto(
             .openInputStream(cameraUri)
             ?.use { input ->
 
-                profilePhoto(context)
+                profilePhoto(context, userId)
                     .outputStream()
                     .use(input::copyTo)
             }
 
-        profilePhoto(context)
+        profilePhoto(context, userId)
             .takeIf(File::exists)
             ?.path
 
@@ -775,3 +784,42 @@ private fun copyCameraToProfilePhoto(
                 File(it).length() > 0
             )
         }
+
+fun formatearRut(raw: String): String {
+    val limpio = raw.replace(".", "").replace("-", "").uppercase().filter { it.isDigit() || it == 'K' }
+    if (limpio.isEmpty()) return ""
+    if (limpio.length == 1) return limpio
+
+    val recortado = if (limpio.length > 9) limpio.substring(0, 9) else limpio
+    val dv = recortado.last()
+    val cuerpo = recortado.substring(0, recortado.length - 1)
+
+    val sb = StringBuilder()
+    var count = 0
+    for (i in cuerpo.length - 1 downTo 0) {
+        if (count > 0 && count % 3 == 0) {
+            sb.append('.')
+        }
+        sb.append(cuerpo[i])
+        count++
+    }
+    return "${sb.reverse()}-$dv"
+}
+
+/** El backend entrega la fecha como "yyyy-MM-dd"; la pantalla la muestra como "dd/MM/yyyy". */
+fun fechaIsoAUi(iso: String?): String {
+    if (iso.isNullOrBlank()) return ""
+    return runCatching {
+        java.time.LocalDate.parse(iso.take(10)).format(PerfilViewModel.FECHA_UI)
+    }.getOrDefault("")
+}
+
+fun formatearFecha(raw: String): String {
+    val digitos = raw.filter { it.isDigit() }.take(8)
+    return when {
+        digitos.isEmpty() -> ""
+        digitos.length <= 2 -> digitos
+        digitos.length <= 4 -> "${digitos.substring(0, 2)}/${digitos.substring(2)}"
+        else -> "${digitos.substring(0, 2)}/${digitos.substring(2, 4)}/${digitos.substring(4)}"
+    }
+}

@@ -1,39 +1,57 @@
 package cl.sanaesencia.app.ui.common
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -49,11 +67,11 @@ fun CampoFormulario(
     modifier: Modifier = Modifier.fillMaxWidth(),
 ) {
     val defaultLeading: @Composable () -> Unit = {
-        Icon(formIcon(label), contentDescription = null)
+        Icon(formIcon(label), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
     }
     val errorTrailing: @Composable () -> Unit = {
         if (error != null) {
-            Icon(Icons.Default.Error, contentDescription = error)
+            Icon(Icons.Default.Error, contentDescription = error, tint = MaterialTheme.colorScheme.error)
         } else if (trailing != null) {
             trailing()
         }
@@ -65,12 +83,23 @@ fun CampoFormulario(
         leadingIcon = leading ?: defaultLeading,
         trailingIcon = errorTrailing,
         isError = error != null,
+        shape = RoundedCornerShape(14.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            focusedLabelColor = MaterialTheme.colorScheme.primary,
+        ),
         supportingText = {
             AnimatedVisibility(
                 visible = error != null,
-                enter = expandVertically(animationSpec = androidx.compose.animation.core.tween(250)) + fadeIn(animationSpec = androidx.compose.animation.core.tween(250)),
+                enter = expandVertically(animationSpec = tween(250)) +
+                        fadeIn(animationSpec = tween(250)),
             ) {
-                Text(error.orEmpty())
+                Text(
+                    text = error.orEmpty(),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         },
         visualTransformation = visual,
@@ -101,6 +130,11 @@ fun PantallaEstado(
     error: String?,
     empty: Boolean,
     onRetry: (() -> Unit)? = null,
+    emptyTitle: String = "No hay registros disponibles",
+    emptyMessage: String? = null,
+    emptyIcon: ImageVector = Icons.Default.Inbox,
+    emptyAction: String? = null,
+    onEmptyAction: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val state = when {
@@ -111,19 +145,69 @@ fun PantallaEstado(
     }
     Crossfade(
         targetState = state,
-        animationSpec = androidx.compose.animation.core.tween(300),
+        animationSpec = tween(300),
         label = "estado-pantalla",
     ) { current ->
         when (current) {
-            "loading" -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+            "loading" -> Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 3.dp,
+                    )
+                    Text(
+                        text = "Cargando...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
-            "error" -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(error.orEmpty(), color = MaterialTheme.colorScheme.error)
+            "error" -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(88.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.errorContainer),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudOff,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(40.dp),
+                        )
+                    }
+                    Text(
+                        text = "No pudimos cargar la información",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = error.orEmpty(),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                     if (onRetry != null) {
-                        TextButton(
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedButton(
                             onClick = onRetry,
+                            shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.heightIn(min = 48.dp),
                         ) {
                             Text("Reintentar")
@@ -131,8 +215,55 @@ fun PantallaEstado(
                     }
                 }
             }
-            "empty" -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No hay información disponible")
+            "empty" -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(88.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = emptyIcon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(40.dp),
+                        )
+                    }
+                    Text(
+                        text = emptyTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                    )
+                    if (emptyMessage != null) {
+                        Text(
+                            text = emptyMessage,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                    if (emptyAction != null && onEmptyAction != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Button(
+                            onClick = onEmptyAction,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.heightIn(min = 48.dp),
+                        ) {
+                            Text(emptyAction)
+                        }
+                    }
+                }
             }
             else -> content()
         }

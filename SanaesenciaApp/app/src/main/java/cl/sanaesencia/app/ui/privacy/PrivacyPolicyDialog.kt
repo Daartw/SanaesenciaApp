@@ -31,7 +31,7 @@ fun PrivacyPolicyDialog(
                     "SanaesenciaApp es una demostración académica. Esta versión utiliza únicamente datos de prueba, anonimizados o ficticios. No se deben ingresar datos personales reales ni información sensible de salud real."
                 )
                 Text(
-                    "\nMarco de referencia\nLa aplicación se diseña considerando la Ley N.º 19.628 y la Ley N.º 21.719 de Chile, priorizando licitud, finalidad, proporcionalidad, seguridad, transparencia y confidencialidad. La Ley N.º 21.719 entra en vigencia el 1 de diciembre de 2026."
+                    "\nMarco de referencia\nLa aplicación se diseña considerando la Ley N.º 19.628 (Protección de la Vida Privada), la Ley N.º 20.584 (Derechos y Deberes de los Pacientes) y la Ley N.º 21.719 de Chile, priorizando licitud, finalidad, proporcionalidad, seguridad, transparencia y confidencialidad. La Ley N.º 21.719 entra en vigencia el 1 de diciembre de 2026."
                 )
                 Text(
                     "\nDatos de demostración\nLos usuarios, profesionales, productos, citas y demás registros usados por la demo son ficticios. La aplicación no debe utilizarse para registrar fichas clínicas reales ni información sanitaria real."

@@ -109,6 +109,12 @@ interface CitaDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(items: List<CitaEntity>)
+
+    @Query("DELETE FROM citas WHERE pacienteId = :id")
+    suspend fun borrarDePaciente(id: Long)
+
+    @Query("DELETE FROM citas")
+    suspend fun clear()
 }
 
 @Dao
@@ -118,6 +124,9 @@ interface ProfesionalDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(items: List<ProfesionalEntity>)
+
+    @Query("DELETE FROM profesionales")
+    suspend fun clear()
 }
 
 @Dao
@@ -127,6 +136,9 @@ interface ProductoDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(items: List<ProductoEntity>)
+
+    @Query("DELETE FROM productos")
+    suspend fun clear()
 }
 
 @Dao

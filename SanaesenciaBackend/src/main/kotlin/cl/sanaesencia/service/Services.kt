@@ -4,6 +4,8 @@ import cl.sanaesencia.api.*
 import cl.sanaesencia.domain.*
 import cl.sanaesencia.repository.*
 import cl.sanaesencia.security.JwtService
+import cl.sanaesencia.security.NoAutenticadoException
+import cl.sanaesencia.security.SinPermisoException
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -35,11 +37,11 @@ class AuthService(
         return LoginResponse(jwt.generate(u.id, u.email, u.rol), u.id, u.nombreCompleto, u.rol)
     }
 
-    fun perfil(authorization: String?): PerfilResponse = users.findById(jwt.userIdFromBearer(authorization)).orElseThrow { IllegalArgumentException("Usuario no encontrado") }.toPerfil()
+    fun perfil(authorization: String?): PerfilResponse = users.findById(jwt.userIdFromBearer(authorization)).orElseThrow { NoAutenticadoException("Tu sesión ya no es válida. Inicia sesión nuevamente") }.toPerfil()
 
     @Transactional
     fun actualizarPerfil(authorization: String?, r: ActualizarPerfilRequest): PerfilResponse {
-        val u = users.findById(jwt.userIdFromBearer(authorization)).orElseThrow { IllegalArgumentException("Usuario no encontrado") }
+        val u = users.findById(jwt.userIdFromBearer(authorization)).orElseThrow { NoAutenticadoException("Tu sesión ya no es válida. Inicia sesión nuevamente") }
         require(r.rut.isNotBlank()) { "El RUT es obligatorio" }
         require(r.nombreCompleto.isNotBlank()) { "El nombre es obligatorio" }
         require(r.telefono.isNotBlank()) { "El teléfono es obligatorio" }
@@ -90,8 +92,8 @@ class CitaService(
     @Transactional
     fun crear(authorization: String?, r: CrearCitaRequest): CitaResponse {
         val pacienteId = jwt.userIdFromBearer(authorization)
-        val paciente = users.findById(pacienteId).orElseThrow { IllegalArgumentException("Paciente no encontrado") }
-        require(paciente.rol == RolUsuario.PACIENTE) { "Solo un paciente puede crear una cita" }
+        val paciente = users.findById(pacienteId).orElseThrow { NoAutenticadoException("Tu sesión ya no es válida. Inicia sesión nuevamente") }
+        if (paciente.rol != RolUsuario.PACIENTE) throw SinPermisoException("Solo un paciente puede reservar citas")
         validarHorarioBase(r.fecha, r.horaInicio, r.horaFin)
         val profesional = profesionales.findById(r.profesionalId).orElseThrow { IllegalArgumentException("Profesional no encontrado") }
         require(profesional.estado == EstadoProfesional.DISPONIBLE) { "El profesional no tiene agenda disponible" }
@@ -108,7 +110,7 @@ class CitaService(
     fun cancelar(authorization: String?, id: Long): Map<String, String> {
         val userId = jwt.userIdFromBearer(authorization)
         val c = citas.findById(id).orElseThrow { IllegalArgumentException("Cita no encontrada") }
-        require(c.pacienteId == userId) { "No puedes cancelar esta cita" }
+        if (c.pacienteId != userId) throw SinPermisoException("No puedes cancelar esta cita")
         validarAnticipacion(c.fecha, c.horaInicio)
         c.estado = EstadoCita.CANCELADA
         citas.save(c)
@@ -119,7 +121,7 @@ class CitaService(
     fun reagendar(authorization: String?, id: Long, r: ReagendarCitaRequest): CitaResponse {
         val userId = jwt.userIdFromBearer(authorization)
         val c = citas.findById(id).orElseThrow { IllegalArgumentException("Cita no encontrada") }
-        require(c.pacienteId == userId) { "No puedes modificar esta cita" }
+        if (c.pacienteId != userId) throw SinPermisoException("No puedes modificar esta cita")
         validarAnticipacion(c.fecha, c.horaInicio)
         validarHorarioBase(r.fecha, r.horaInicio, r.horaFin)
         val p = profesionales.findById(r.profesionalId).orElseThrow { IllegalArgumentException("Profesional no encontrado") }
@@ -148,17 +150,17 @@ class CitaService(
 
     fun agenda(authorization: String?): List<CitaResponse> {
         val userId = jwt.userIdFromBearer(authorization)
-        val p = profesionales.findByUsuarioId(userId) ?: throw IllegalArgumentException("Perfil profesional no encontrado")
+        val p = profesionales.findByUsuarioId(userId) ?: throw SinPermisoException("Esta sección es solo para profesionales")
         return citas.findAllByProfesionalIdOrderByFechaAscHoraInicioAsc(p.id).map { it.toResponse() }
     }
 
     fun historial(pacienteId: Long, authorization: String?): List<FichaClinicaResponse> {
         val userId = jwt.userIdFromBearer(authorization)
-        val actor = users.findById(userId).orElseThrow { IllegalArgumentException("Usuario no encontrado") }
-        if (actor.rol == RolUsuario.PACIENTE) require(actor.id == pacienteId) { "No puedes consultar otro paciente" }
+        val actor = users.findById(userId).orElseThrow { NoAutenticadoException("Tu sesión ya no es válida. Inicia sesión nuevamente") }
+        if (actor.rol == RolUsuario.PACIENTE && actor.id != pacienteId) throw SinPermisoException("No puedes consultar otro paciente")
         if (actor.rol == RolUsuario.PROFESIONAL) {
-            val professional = profesionales.findByUsuarioId(actor.id) ?: throw IllegalArgumentException("Perfil profesional no encontrado")
-            require(citas.findAllByProfesionalIdOrderByFechaAscHoraInicioAsc(professional.id).any { it.pacienteId == pacienteId }) { "Paciente no asignado" }
+            val professional = profesionales.findByUsuarioId(actor.id) ?: throw SinPermisoException("Perfil profesional no encontrado")
+            if (citas.findAllByProfesionalIdOrderByFechaAscHoraInicioAsc(professional.id).none { it.pacienteId == pacienteId }) throw SinPermisoException("Este paciente no está asignado a ti")
         }
         return citas.findAllByPacienteIdOrderByFechaDescHoraInicioDesc(pacienteId).map { FichaClinicaResponse(it.id, it.fecha, it.modalidad, it.estado, it.notasAtencion) }
     }
@@ -166,12 +168,12 @@ class CitaService(
     @Transactional
     fun actualizarEstado(authorization: String?, id: Long, request: EstadoCitaRequest): CitaResponse {
         val userId = jwt.userIdFromBearer(authorization)
-        val actor = users.findById(userId).orElseThrow { IllegalArgumentException("Usuario no encontrado") }
+        val actor = users.findById(userId).orElseThrow { NoAutenticadoException("Tu sesión ya no es válida. Inicia sesión nuevamente") }
         val c = citas.findById(id).orElseThrow { IllegalArgumentException("Cita no encontrada") }
         if (actor.rol == RolUsuario.PROFESIONAL) {
-            val p = profesionales.findByUsuarioId(actor.id) ?: throw IllegalArgumentException("Perfil profesional no encontrado")
-            require(c.profesionalId == p.id) { "No puedes modificar esta cita" }
-        } else require(actor.rol == RolUsuario.ADMIN) { "No autorizado" }
+            val p = profesionales.findByUsuarioId(actor.id) ?: throw SinPermisoException("Perfil profesional no encontrado")
+            if (c.profesionalId != p.id) throw SinPermisoException("No puedes modificar esta cita")
+        } else if (actor.rol != RolUsuario.ADMIN) throw SinPermisoException()
         c.estado = request.estado
         c.notasAtencion = request.notasAtencion
         return citas.save(c).toResponse()
@@ -189,8 +191,8 @@ class PedidoService(
     @Transactional
     fun crear(authorization: String?, request: CrearPedidoRequest): PedidoResponse {
         val userId = jwt.userIdFromBearer(authorization)
-        val user = users.findById(userId).orElseThrow { IllegalArgumentException("Usuario no encontrado") }
-        require(user.rol == RolUsuario.PACIENTE) { "Solo pacientes pueden realizar pedidos" }
+        val user = users.findById(userId).orElseThrow { NoAutenticadoException("Tu sesión ya no es válida. Inicia sesión nuevamente") }
+        if (user.rol != RolUsuario.PACIENTE) throw SinPermisoException("Solo los pacientes pueden comprar en la tienda")
         require(request.items.isNotEmpty()) { "El carrito está vacío" }
         val pedido = pedidos.save(Pedido(pacienteId = userId, estado = "PAGADO_DEMO"))
         var total = 0L
@@ -226,14 +228,18 @@ class AdminService(
     private val boxes: BoxRepository,
     private val jwt: JwtService,
 ) {
-    private fun requireAdmin(authorization: String?) {
+    /** Lanza 401 si no hay sesión válida y 403 si el usuario no es ADMIN. Siempre se llama ANTES de leer o modificar datos. */
+    fun verificarAdmin(authorization: String?) {
         val id = jwt.userIdFromBearer(authorization)
-        require(users.findById(id).orElseThrow { IllegalArgumentException("Usuario no encontrado") }.rol == RolUsuario.ADMIN) { "No autorizado" }
+        val user = users.findById(id).orElseThrow { NoAutenticadoException("Tu sesión ya no es válida. Inicia sesión nuevamente") }
+        if (user.rol != RolUsuario.ADMIN) throw SinPermisoException("Esta sección es solo para administradores")
     }
-    fun stockBajo(auth: String?) = products.findAll().filter { it.estaActivo && it.stock <= 3 }.map { it.toResponse() }.also { requireAdmin(auth) }
-    fun profesionales(auth: String?) = professionals.findAll().map { it.toResponse() }.also { requireAdmin(auth) }
-    fun boxes(auth: String?) = boxes.findAllByOrderByNumeroBoxAsc().map { it.toResponse() }.also { requireAdmin(auth) }
-    fun crearProducto(auth: String?, r: ProductoAdminRequest) = products.save(Producto(nombre=r.nombre, descripcion=r.descripcion, precio=r.precio, stock=r.stock, imagenUrl=r.imagenUrl, etiquetasTerapeuticas=r.etiquetasTerapeuticas, estaActivo=r.estaActivo)).toResponse().also { requireAdmin(auth) }
+    private fun requireAdmin(authorization: String?) = verificarAdmin(authorization)
+    fun stockBajo(auth: String?): List<ProductoResponse> { requireAdmin(auth); return products.findAll().filter { it.estaActivo && it.stock <= 3 }.map { it.toResponse() } }
+    fun profesionales(auth: String?): List<ProfesionalResponse> { requireAdmin(auth); return professionals.findAll().map { it.toResponse() } }
+    fun boxes(auth: String?): List<BoxResponse> { requireAdmin(auth); return boxes.findAllByOrderByNumeroBoxAsc().map { it.toResponse() } }
+    @Transactional
+    fun crearProducto(auth: String?, r: ProductoAdminRequest): ProductoResponse { requireAdmin(auth); return products.save(Producto(nombre=r.nombre, descripcion=r.descripcion, precio=r.precio, stock=r.stock, imagenUrl=r.imagenUrl, etiquetasTerapeuticas=r.etiquetasTerapeuticas, estaActivo=r.estaActivo)).toResponse() }
     fun editarProducto(auth: String?, id: Long, r: ProductoAdminRequest): ProductoResponse { requireAdmin(auth); val p=products.findById(id).orElseThrow{IllegalArgumentException("Producto no encontrado")}; p.nombre=r.nombre;p.descripcion=r.descripcion;p.precio=r.precio;p.stock=r.stock;p.imagenUrl=r.imagenUrl;p.etiquetasTerapeuticas=r.etiquetasTerapeuticas;p.estaActivo=r.estaActivo;return products.save(p).toResponse() }
     fun toggleBox(auth: String?, id: Long, r: EstadoBoxRequest): BoxResponse { requireAdmin(auth); val b=boxes.findById(id).orElseThrow{IllegalArgumentException("Box no encontrado")};b.estaHabilitado=r.habilitado;return boxes.save(b).toResponse() }
     fun crearProfesional(auth: String?, r: ProfesionalAdminRequest): ProfesionalResponse { requireAdmin(auth); val u=users.findById(r.usuarioId).orElseThrow{IllegalArgumentException("Usuario no encontrado")};require(u.rol==RolUsuario.PROFESIONAL){"El usuario debe tener rol PROFESIONAL"};require(professionals.findByUsuarioId(u.id)==null){"El usuario ya tiene perfil profesional"};return professionals.save(Profesional(usuarioId=u.id,titulo=r.titulo,categoriaEspecialidad=r.categoriaEspecialidad,descripcionEnfoque=r.descripcionEnfoque,certificaciones=r.certificaciones,anosExperiencia=r.anosExperiencia,estado=r.estado,fotoUrl=r.fotoUrl)).toResponse() }

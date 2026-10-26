@@ -1,6 +1,8 @@
 package cl.sanaesencia.app.presentation
 
 import androidx.lifecycle.ViewModel
+import cl.sanaesencia.app.data.remote.mensajeUsuario
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 
 abstract class BaseViewModel : ViewModel() {
@@ -10,8 +12,13 @@ abstract class BaseViewModel : ViewModel() {
         block: suspend () -> T,
     ) {
         state.value = UiState.Cargando
-        runCatching { block() }
-            .onSuccess { data -> state.value = if (empty?.invoke(data) == true) UiState.Vacio else UiState.Exito(data) }
-            .onFailure { state.value = UiState.Error(it.message ?: "Ocurrió un error inesperado") }
+        try {
+            val data = block()
+            state.value = if (empty?.invoke(data) == true) UiState.Vacio else UiState.Exito(data)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            state.value = UiState.Error(e.mensajeUsuario())
+        }
     }
 }

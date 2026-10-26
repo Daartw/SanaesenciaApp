@@ -108,8 +108,6 @@ class CartViewModelTest {
         override suspend fun disponibilidad(profesionalId: Long, fecha: String) = TODO()
         override suspend fun agendaProfesional() = TODO()
         override suspend fun historialPaciente(pacienteId: Long) = TODO()
-        override suspend fun citasPaciente(pacienteId: Long) = TODO()
-        override suspend fun citasProfesional(profesionalId: Long) = TODO()
         override suspend fun promociones() = TODO()
         override suspend fun crearPromocion(request: PromocionRequest) = TODO()
         override suspend fun actualizarEstado(id: Long, request: cl.sanaesencia.app.data.remote.EstadoCitaRequest) = TODO()
@@ -122,5 +120,7 @@ class CartViewModelTest {
         override suspend fun adminCrearProducto(request: ProductoAdminRequest) = TODO()
         override suspend fun adminBox(id: Long, request: EstadoBoxRequest) = TODO()
         override suspend fun adminCrearProfesional(request: ProfesionalAdminRequest) = TODO()
+        override suspend fun adminEditarProducto(id: Long, request: ProductoAdminRequest) = TODO()
+        override suspend fun adminEstadoProfesional(id: Long, request: cl.sanaesencia.app.data.remote.EstadoProfesionalRequest) = TODO()
     }
 }

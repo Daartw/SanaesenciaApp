@@ -13,10 +13,23 @@ import cl.sanaesencia.app.data.session.SessionManager
 import cl.sanaesencia.app.domain.usecase.AgendarCitaUseCase
 import cl.sanaesencia.app.domain.usecase.DetectarDesercionUseCase
 import cl.sanaesencia.app.domain.usecase.VerificarStockBajoUseCase
+import cl.sanaesencia.app.presentation.AgendaViewModel
+import cl.sanaesencia.app.presentation.CartViewModel
+import cl.sanaesencia.app.presentation.CatalogViewModel
+import cl.sanaesencia.app.presentation.CitasViewModel
+import cl.sanaesencia.app.presentation.LoginViewModel
+import cl.sanaesencia.app.presentation.PerfilViewModel
+import cl.sanaesencia.app.ui.admin.AdminViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class AppContainer(context: Context) {
 
     private val applicationContext = context.applicationContext
+
+    init {
+        RetrofitClient.initialize(applicationContext)
+    }
 
     val sessionManager = SessionManager(applicationContext)
 
@@ -30,34 +43,47 @@ class AppContainer(context: Context) {
 
     val api = RetrofitClient.api
 
-    val auth = AuthRepository(
-        api,
-        sessionManager
-    )
+    val auth = AuthRepository(api, sessionManager)
+    val catalog = CatalogRepository(api, db)
+    val citas = CitaRepository(api, db, sessionManager)
+    val cart = CartRepository(db.carrito())
+    val pedidos = PedidoRepository(api)
 
-    val catalog = CatalogRepository(
-        api,
-        db
-    )
-
-    val citas = CitaRepository(
-        api,
-        db
-    )
-
-    val cart = CartRepository(
-        db.carrito()
-    )
-
-    val pedidos = PedidoRepository(
-        api
-    )
-
-    val agendarCita = AgendarCitaUseCase(
-        citas
-    )
-
+    val agendarCita = AgendarCitaUseCase(citas)
     val detectarDesercion = DetectarDesercionUseCase()
-
     val verificarStockBajo = VerificarStockBajoUseCase()
+
+    // El catálogo (profesionales y productos) es público: se comparte entre sesiones.
+    val catalogViewModel = CatalogViewModel(catalog)
+
+    // Estos ViewModels guardan datos de la persona que inició sesión.
+    // Se vuelven a crear al cerrar sesión para que la siguiente cuenta no vea datos de la anterior.
+    var loginViewModel = LoginViewModel(auth); private set
+    var cartViewModel = CartViewModel(cart, pedidos); private set
+    var citasViewModel = CitasViewModel(citas, agendarCita); private set
+    var agendaViewModel = AgendaViewModel(citas); private set
+    var perfilViewModel = PerfilViewModel(auth); private set
+    var adminViewModel = AdminViewModel(api, verificarStockBajo, catalog); private set
+
+    private fun recrearViewModelsDeSesion() {
+        loginViewModel = LoginViewModel(auth)
+        cartViewModel = CartViewModel(cart, pedidos)
+        citasViewModel = CitasViewModel(citas, agendarCita)
+        agendaViewModel = AgendaViewModel(citas)
+        perfilViewModel = PerfilViewModel(auth)
+        adminViewModel = AdminViewModel(api, verificarStockBajo, catalog)
+    }
+
+    /**
+     * Cierra la sesión por completo: borra el token, el carrito y las citas guardadas
+     * en el teléfono, y deja los ViewModels limpios para la próxima cuenta.
+     */
+    suspend fun cerrarSesion() {
+        auth.logout()
+        withContext(Dispatchers.IO) {
+            runCatching { db.carrito().clear() }
+            runCatching { db.citas().clear() }
+        }
+        recrearViewModelsDeSesion()
+    }
 }

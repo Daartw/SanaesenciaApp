@@ -1,3 +1,4 @@
+
 package cl.sanaesencia.app
 
 import android.os.Bundle
@@ -16,27 +17,30 @@ class MainActivity : ComponentActivity() {
     private lateinit var container: AppContainer
     private lateinit var privacyManager: PrivacyManager
 
-    override fun onCreate(state: Bundle?) {
-        super.onCreate(state)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
 
         container = AppContainer(applicationContext)
         privacyManager = PrivacyManager(applicationContext)
 
         setContent {
             SanaesenciaTheme {
-
+                // null = todavía leyendo la preferencia (evita que la pantalla de privacidad
+                // aparezca un instante cada vez que se abre la app).
                 val accepted by privacyManager.accepted
-                    .collectAsState(initial = false)
+                    .collectAsState<Boolean?>(initial = null)
 
                 val scope = rememberCoroutineScope()
 
-                if (!accepted) {
-                    PrivacyGateScreen(
+                when (accepted) {
+                    null -> Unit
+                    false -> PrivacyGateScreen(
                         privacyManager = privacyManager,
                         scope = scope
                     )
-                } else {
-                    SanaesenciaNavGraph(container)
+                    true -> SanaesenciaNavGraph(
+                        container = container
+                    )
                 }
             }
         }
