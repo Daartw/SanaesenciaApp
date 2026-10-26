@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
@@ -34,6 +35,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
@@ -45,6 +48,8 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.DropdownMenu
@@ -110,6 +115,18 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 import cl.sanaesencia.app.data.remote.EstadoProfesionalRequest
 import cl.sanaesencia.app.data.remote.EstadoProductoRequest
+import cl.sanaesencia.app.data.remote.BoxOcupacionResponse
+import cl.sanaesencia.app.data.remote.CitaAdminResponse
+import cl.sanaesencia.app.data.remote.CuentaActivaRequest
+import cl.sanaesencia.app.data.remote.DisponibilidadResponse
+import cl.sanaesencia.app.data.remote.MedilinkSyncResponse
+import cl.sanaesencia.app.data.remote.ProfesionalEditRequest
+import cl.sanaesencia.app.data.remote.ReagendarCitaRequest
+import cl.sanaesencia.app.domain.model.EstadoCita
+import cl.sanaesencia.app.domain.model.ModalidadCita
+import cl.sanaesencia.app.ui.common.EstadoCitaPildora
+import cl.sanaesencia.app.ui.common.FormatoFecha
+import java.time.LocalDate
 import cl.sanaesencia.app.data.remote.mensajeUsuario
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -147,8 +164,9 @@ const val CONTRASENA_INICIAL = "Demo123!"
 enum class AdminSection(val label: String, val icon: ImageVector) {
     INICIO("Inicio", Icons.Default.Home),
     BOXES("Boxes", Icons.Default.MeetingRoom),
+    CITAS("Citas", Icons.Default.Event),
     TIENDA("Tienda", Icons.Default.Store),
-    PROFESIONALES("Profesionales", Icons.Default.Group),
+    PROFESIONALES("Equipo", Icons.Default.Group),
 }
 
 /* ================================================================= */
@@ -442,6 +460,115 @@ class AdminViewModel(
         }
     }
 
+    /* ------------------------------ Citas (RF-08) ------------------------------ */
+
+    val citas = MutableStateFlow<UiState<List<CitaAdminResponse>>>(UiState.Cargando)
+    val disponibilidadAdmin = MutableStateFlow<UiState<List<DisponibilidadResponse>>>(UiState.Vacio)
+
+    fun cargarCitas() {
+        viewModelScope.launch { ejecutar(citas, { it.isEmpty() }) { api.adminCitas() } }
+    }
+
+    fun cancelarCita(cita: CitaAdminResponse) {
+        viewModelScope.launch {
+            runCatching { api.cancelarCita(cita.id) }
+                .onSuccess {
+                    message.value = "Cita cancelada"
+                    cargarCitas()
+                }
+                .onFailure { message.value = it.mensajeUsuario("No fue posible cancelar la cita") }
+        }
+    }
+
+    fun cargarDisponibilidad(profesionalId: Long, fecha: LocalDate) {
+        viewModelScope.launch {
+            ejecutar(disponibilidadAdmin) { api.disponibilidad(profesionalId, fecha.toString()) }
+        }
+    }
+
+    fun reagendarCita(cita: CitaAdminResponse, fecha: LocalDate, slot: DisponibilidadResponse) {
+        viewModelScope.launch {
+            runCatching {
+                api.reagendar(
+                    cita.id,
+                    ReagendarCitaRequest(
+                        profesionalId = cita.profesionalId,
+                        boxId = null,
+                        fecha = fecha.toString(),
+                        horaInicio = slot.horaInicio,
+                        horaFin = slot.horaFin,
+                        modalidad = cita.modalidad,
+                    ),
+                )
+            }.onSuccess {
+                message.value = "Cita reagendada"
+                cargarCitas()
+            }.onFailure { message.value = it.mensajeUsuario("No fue posible reagendar la cita") }
+        }
+    }
+
+    /* ------------------------- Ocupación de boxes (RF-11) ------------------------- */
+
+    val ocupacion = MutableStateFlow<UiState<List<BoxOcupacionResponse>>>(UiState.Cargando)
+    val fechaOcupacion = MutableStateFlow(LocalDate.now())
+
+    fun cargarOcupacion(fecha: LocalDate = fechaOcupacion.value) {
+        fechaOcupacion.value = fecha
+        viewModelScope.launch { ejecutar(ocupacion) { api.adminOcupacionBoxes(fecha.toString()) } }
+    }
+
+    /* ------------------------ Terapeutas: editar / baja (RF-05) ------------------------ */
+
+    fun editarProfesional(profesional: ProfesionalResponse, titulo: String, categoria: String, descripcion: String) {
+        if (titulo.isBlank() || categoria.isBlank()) {
+            message.value = "Completa el título y la especialidad"
+            return
+        }
+        viewModelScope.launch {
+            runCatching {
+                val actualizado = api.adminEditarProfesional(
+                    profesional.id,
+                    ProfesionalEditRequest(titulo.trim(), categoria.trim(), descripcion.trim()),
+                )
+                runCatching { catalogRepository?.saveProfesional(actualizado) }
+                refrescar()
+            }.onSuccess { message.value = "Profesional actualizado" }
+                .onFailure { message.value = it.mensajeUsuario("No fue posible actualizar el profesional") }
+        }
+    }
+
+    fun cambiarCuentaProfesional(profesional: ProfesionalResponse, activa: Boolean) {
+        viewModelScope.launch {
+            runCatching {
+                api.adminCuentaProfesional(profesional.id, CuentaActivaRequest(activa))
+                runCatching { catalogRepository?.refresh() }
+                refrescar()
+            }.onSuccess {
+                message.value = if (activa) "Cuenta del profesional habilitada" else "Cuenta del profesional deshabilitada"
+            }.onFailure { message.value = it.mensajeUsuario("No fue posible cambiar la cuenta") }
+        }
+    }
+
+    /* ------------------------------ MEDIlink (RF-14) ------------------------------ */
+
+    val medilink = MutableStateFlow<MedilinkSyncResponse?>(null)
+    val sincronizando = MutableStateFlow(false)
+
+    fun sincronizarMedilink() {
+        if (sincronizando.value) return
+        sincronizando.value = true
+        viewModelScope.launch {
+            runCatching { api.adminSincronizarMedilink() }
+                .onSuccess { medilink.value = it }
+                .onFailure { message.value = it.mensajeUsuario("No fue posible sincronizar con MEDIlink") }
+            sincronizando.value = false
+        }
+    }
+
+    fun cerrarMedilink() {
+        medilink.value = null
+    }
+
     private fun actualizarProductoLocal(product: ProductoResponse) {
         val actual = datosActuales() ?: return
         state.value = UiState.Exito(
@@ -470,6 +597,8 @@ fun AdminDashboardScreen(
     var showProduct by remember { mutableStateOf(false) }
     var productToEdit by remember { mutableStateOf<ProductoResponse?>(null) }
     var showProfessional by remember { mutableStateOf(false) }
+    var professionalToEdit by remember { mutableStateOf<ProfesionalResponse?>(null) }
+    val medilinkResultado by vm.medilink.collectAsState()
 
     val snackbar = remember { SnackbarHostState() }
 
@@ -539,7 +668,9 @@ fun AdminDashboardScreen(
                         AdminSection.BOXES -> BoxesSection(
                             boxes = data.boxes,
                             onToggle = vm::toggleBox,
+                            vm = vm,
                         )
+                        AdminSection.CITAS -> CitasAdminSection(vm = vm)
                         AdminSection.TIENDA -> TiendaSection(
                             products = data.products,
                             vm = vm,
@@ -561,6 +692,8 @@ fun AdminDashboardScreen(
                                 showProfessional = true
                             },
                             onChangeState = vm::cambiarEstadoProfesional,
+                            onEdit = { professionalToEdit = it },
+                            onCuenta = vm::cambiarCuentaProfesional,
                         )
                     }
                 }
@@ -620,6 +753,35 @@ fun AdminDashboardScreen(
                 }
             },
             confirmButton = { TextButton(onClick = vm::cerrarCredenciales) { Text("Entendido") } },
+        )
+    }
+
+    professionalToEdit?.let { profesional ->
+        EditProfessionalDialog(
+            profesional = profesional,
+            onDismiss = { professionalToEdit = null },
+            onSave = { titulo, categoria, descripcion ->
+                vm.editarProfesional(profesional, titulo, categoria, descripcion)
+                professionalToEdit = null
+            },
+        )
+    }
+
+    medilinkResultado?.let { r ->
+        AlertDialog(
+            onDismissRequest = vm::cerrarMedilink,
+            icon = { Icon(Icons.Default.Sync, contentDescription = null) },
+            title = {
+                Text(
+                    when (r.estado) {
+                        "OK" -> "Sincronización completada"
+                        "NO_CONFIGURADO" -> "MEDIlink sin configurar"
+                        else -> "No se pudo sincronizar"
+                    },
+                )
+            },
+            text = { Text(r.mensaje) },
+            confirmButton = { TextButton(onClick = vm::cerrarMedilink) { Text("Entendido") } },
         )
     }
 }
@@ -742,11 +904,53 @@ private fun InicioSection(
                 QuickAction(Modifier.weight(1f), "Boxes", Icons.Default.MeetingRoom) {
                     onGo(AdminSection.BOXES)
                 }
+                QuickAction(Modifier.weight(1f), "Citas", Icons.Default.Event) {
+                    onGo(AdminSection.CITAS)
+                }
                 QuickAction(Modifier.weight(1f), "Tienda", Icons.Default.Store) {
                     onGo(AdminSection.TIENDA)
                 }
                 QuickAction(Modifier.weight(1f), "Equipo", Icons.Default.Group) {
                     onGo(AdminSection.PROFESIONALES)
+                }
+            }
+        }
+
+        item(key = "medilink") {
+            val sincronizando by vm.sincronizando.collectAsState()
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 12.dp),
+                    ) {
+                        Text("MEDIlink", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Sincroniza las citas con el sistema clínico.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Button(
+                        onClick = vm::sincronizarMedilink,
+                        enabled = !sincronizando,
+                        modifier = Modifier.heightIn(min = 44.dp),
+                    ) {
+                        if (sincronizando) {
+                            CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                        } else {
+                            Text("Sincronizar")
+                        }
+                    }
                 }
             }
         }
@@ -776,7 +980,8 @@ private fun InicioSection(
                     ) {
                         Icon(Icons.Default.Warning, contentDescription = null)
                         Text(
-                            text = alert.toString(),
+                            text = "Paciente #${alert.pacienteId} · ${alert.diasSinSesion ?: "?"} días sin sesión" +
+                                (alert.ultimaSesion?.let { " (última: ${FormatoFecha.largo(it)})" } ?: ""),
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             style = MaterialTheme.typography.bodyMedium,
@@ -851,8 +1056,21 @@ private fun QuickAction(
 private fun BoxesSection(
     boxes: List<BoxResponse>,
     onToggle: (BoxResponse) -> Unit,
+    vm: AdminViewModel,
 ) {
     val enabled = boxes.count { it.estaHabilitado }
+    val fecha by vm.fechaOcupacion.collectAsState()
+    val ocupacion by vm.ocupacion.collectAsState()
+    val hoy = remember { LocalDate.now() }
+    val dias = remember { (0L until 7L).map { hoy.plusDays(it) } }
+
+    LaunchedEffect(Unit) { vm.cargarOcupacion() }
+
+    // RF-11: citas de cada box en el día elegido.
+    val citasPorBox: Map<Long, List<CitaAdminResponse>> =
+        (ocupacion as? UiState.Exito<List<BoxOcupacionResponse>>)?.datos
+            ?.associate { it.id to it.citas }
+            .orEmpty()
 
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
@@ -861,6 +1079,34 @@ private fun BoxesSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(dias, key = { it.toEpochDay() }) { dia ->
+                FilterChip(
+                    selected = dia == fecha,
+                    onClick = { vm.cargarOcupacion(dia) },
+                    label = {
+                        Text(
+                            when (dia) {
+                                hoy -> "Hoy"
+                                hoy.plusDays(1) -> "Mañana"
+                                else -> FormatoFecha.corto(dia)
+                            },
+                        )
+                    },
+                )
+            }
+        }
+        if (ocupacion is UiState.Error) {
+            Text(
+                (ocupacion as UiState.Error).mensaje,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             contentPadding = PaddingValues(16.dp),
@@ -869,7 +1115,12 @@ private fun BoxesSection(
             modifier = Modifier.fillMaxSize(),
         ) {
             gridItems(boxes, key = { "box_${it.id}" }) { box ->
-                BoxCard(box = box, onToggle = { onToggle(box) })
+                BoxCard(
+                    box = box,
+                    citas = citasPorBox[box.id].orEmpty(),
+                    cargando = ocupacion is UiState.Cargando,
+                    onToggle = { onToggle(box) },
+                )
             }
         }
     }
@@ -887,6 +1138,8 @@ private fun <T> androidx.compose.foundation.lazy.grid.LazyGridScope.gridItems(
 @Composable
 private fun BoxCard(
     box: BoxResponse,
+    citas: List<CitaAdminResponse>,
+    cargando: Boolean,
     onToggle: () -> Unit,
 ) {
     val on = box.estaHabilitado
@@ -903,7 +1156,7 @@ private fun BoxCard(
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
                 "Box ${box.numeroBox}",
@@ -925,16 +1178,236 @@ private fun BoxCard(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
+            Text(
+                text = when {
+                    cargando -> "Cargando ocupación..."
+                    citas.isEmpty() -> "Libre todo el día"
+                    else -> "${citas.size} de 8 bloques ocupados"
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = if (citas.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.secondary,
+            )
+            citas.take(4).forEach { c ->
+                Text(
+                    "${FormatoFecha.hora(c.horaInicio)} · ${c.profesionalNombre}",
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (citas.size > 4) {
+                Text("+${citas.size - 4} más", style = MaterialTheme.typography.bodySmall)
+            }
             FilledTonalButton(
                 onClick = onToggle,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 48.dp),
+                    .heightIn(min = 44.dp),
             ) {
                 Text(if (on) "Pausar" else "Habilitar")
             }
         }
     }
+}
+
+/* ================================================================= */
+/* CITAS (RF-08)                                                     */
+/* ================================================================= */
+
+@Composable
+private fun CitasAdminSection(vm: AdminViewModel) {
+    val state by vm.citas.collectAsState()
+    var soloProximas by remember { mutableStateOf(true) }
+    var aCancelar by remember { mutableStateOf<CitaAdminResponse?>(null) }
+    var aReagendar by remember { mutableStateOf<CitaAdminResponse?>(null) }
+    val hoy = remember { LocalDate.now().toString() }
+
+    LaunchedEffect(Unit) { vm.cargarCitas() }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FilterChip(selected = soloProximas, onClick = { soloProximas = true }, label = { Text("Próximas") })
+            FilterChip(selected = !soloProximas, onClick = { soloProximas = false }, label = { Text("Todas") })
+        }
+        PantallaEstado(
+            loading = state is UiState.Cargando,
+            error = (state as? UiState.Error)?.mensaje,
+            empty = state is UiState.Vacio,
+            onRetry = vm::cargarCitas,
+            emptyTitle = "No hay citas registradas",
+            emptyIcon = Icons.Default.Event,
+        ) {
+            val todas = (state as? UiState.Exito<List<CitaAdminResponse>>)?.datos.orEmpty()
+            val lista = if (soloProximas) {
+                todas.filter { it.fecha.take(10) >= hoy && (it.estado == EstadoCita.RESERVADA || it.estado == EstadoCita.CONFIRMADA) }
+            } else {
+                todas.sortedWith(compareByDescending<CitaAdminResponse> { it.fecha }.thenByDescending { it.horaInicio })
+            }
+            if (lista.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No hay citas próximas", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(lista, key = { "cita_${it.id}" }) { cita ->
+                        val vigente = cita.estado == EstadoCita.RESERVADA || cita.estado == EstadoCita.CONFIRMADA
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "${FormatoFecha.largo(cita.fecha)} · ${FormatoFecha.hora(cita.horaInicio)}",
+                                            style = MaterialTheme.typography.titleSmall,
+                                        )
+                                        Text(
+                                            "Cita #${cita.id}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    EstadoCitaPildora(cita.estado)
+                                }
+                                Text("Paciente: ${cita.pacienteNombre}", style = MaterialTheme.typography.bodyMedium)
+                                Text("Profesional: ${cita.profesionalNombre}", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    if (cita.modalidad == ModalidadCita.ONLINE) "Online" else "Presencial" + (cita.numeroBox?.let { " · Box $it" } ?: ""),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                if (vigente) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        FilledTonalButton(
+                                            onClick = {
+                                                aReagendar = cita
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                        ) { Text("Reagendar") }
+                                        OutlinedButton(
+                                            onClick = { aCancelar = cita },
+                                            modifier = Modifier.weight(1f),
+                                        ) { Text("Cancelar", color = MaterialTheme.colorScheme.error) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    aCancelar?.let { cita ->
+        AlertDialog(
+            onDismissRequest = { aCancelar = null },
+            title = { Text("¿Cancelar la cita #${cita.id}?") },
+            text = {
+                Text("${cita.pacienteNombre} con ${cita.profesionalNombre}, ${FormatoFecha.largo(cita.fecha)} a las ${FormatoFecha.hora(cita.horaInicio)}. Solo se puede cancelar hasta 15 horas antes.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.cancelarCita(cita)
+                    aCancelar = null
+                }) { Text("Cancelar cita", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { aCancelar = null }) { Text("Volver") } },
+        )
+    }
+
+    aReagendar?.let { cita ->
+        ReagendarAdminDialog(
+            cita = cita,
+            vm = vm,
+            onDismiss = { aReagendar = null },
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ReagendarAdminDialog(
+    cita: CitaAdminResponse,
+    vm: AdminViewModel,
+    onDismiss: () -> Unit,
+) {
+    val manana = remember { LocalDate.now().plusDays(1) }
+    val dias = remember { (0L until 14L).map { manana.plusDays(it) } }
+    var fecha by remember { mutableStateOf(manana) }
+    var slot by remember { mutableStateOf<DisponibilidadResponse?>(null) }
+    val disponibilidad by vm.disponibilidadAdmin.collectAsState()
+
+    LaunchedEffect(fecha) {
+        slot = null
+        vm.cargarDisponibilidad(cita.profesionalId, fecha)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Reagendar cita #${cita.id}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("${cita.pacienteNombre} · ${cita.profesionalNombre}", style = MaterialTheme.typography.bodyMedium)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(dias, key = { it.toEpochDay() }) { dia ->
+                        FilterChip(
+                            selected = dia == fecha,
+                            onClick = { fecha = dia },
+                            label = { Text(FormatoFecha.corto(dia)) },
+                        )
+                    }
+                }
+                when (val d = disponibilidad) {
+                    is UiState.Cargando -> CircularProgressIndicator(strokeWidth = 2.dp)
+                    is UiState.Error -> Text(d.mensaje, color = MaterialTheme.colorScheme.error)
+                    is UiState.Vacio -> Text("Sin horarios")
+                    is UiState.Exito<List<DisponibilidadResponse>> -> {
+                        val libres = d.datos.filter {
+                            it.disponible && (cita.modalidad == ModalidadCita.ONLINE || it.boxesLibres > 0)
+                        }
+                        if (libres.isEmpty()) {
+                            Text("No hay horarios libres este día.")
+                        } else {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                libres.forEach { s ->
+                                    FilterChip(
+                                        selected = slot == s,
+                                        onClick = { slot = s },
+                                        label = { Text(FormatoFecha.hora(s.horaInicio)) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = slot != null,
+                onClick = {
+                    slot?.let { vm.reagendarCita(cita, fecha, it) }
+                    onDismiss()
+                },
+            ) { Text("Confirmar") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+    )
 }
 
 /* ================================================================= */
@@ -1108,6 +1581,8 @@ private fun ProfesionalesSection(
     professionals: List<ProfesionalResponse>,
     onAdd: () -> Unit,
     onChangeState: (ProfesionalResponse, EstadoProfesional) -> Unit,
+    onEdit: (ProfesionalResponse) -> Unit,
+    onCuenta: (ProfesionalResponse, Boolean) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -1137,15 +1612,43 @@ private fun ProfesionalesSection(
                     modifier = Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Text(
-                        professional.titulo,
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Text(
-                        professional.categoriaEspecialidad,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                professional.nombre.ifBlank { professional.titulo },
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Text(
+                                if (professional.nombre.isBlank()) professional.categoriaEspecialidad
+                                else "${professional.titulo} · ${professional.categoriaEspecialidad}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (professional.email.isNotBlank()) {
+                                Text(
+                                    professional.email,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        IconButton(onClick = { onEdit(professional) }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Editar profesional")
+                        }
+                    }
+                    // RF-05: baja / alta de la cuenta. Deshabilitada no puede ingresar ni recibir reservas.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            if (professional.cuentaActiva) "Cuenta activa" else "Cuenta deshabilitada",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (professional.cuentaActiva) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Switch(
+                            checked = professional.cuentaActiva,
+                            onCheckedChange = { onCuenta(professional, it) },
+                        )
+                    }
                     FlowRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1305,6 +1808,57 @@ private fun ProfessionalDialog(
                 }
             }
         },
+    )
+}
+
+@Composable
+private fun EditProfessionalDialog(
+    profesional: ProfesionalResponse,
+    onDismiss: () -> Unit,
+    onSave: (titulo: String, categoria: String, descripcion: String) -> Unit,
+) {
+    var titulo by remember { mutableStateOf(profesional.titulo) }
+    var categoria by remember { mutableStateOf(profesional.categoriaEspecialidad) }
+    var descripcion by remember { mutableStateOf(profesional.descripcionEnfoque) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Editar profesional") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (profesional.nombre.isNotBlank()) {
+                    Text(profesional.nombre, style = MaterialTheme.typography.titleSmall)
+                }
+                OutlinedTextField(
+                    value = titulo,
+                    onValueChange = { titulo = it },
+                    label = { Text("Título") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = categoria,
+                    onValueChange = { categoria = it },
+                    label = { Text("Especialidad") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = descripcion,
+                    onValueChange = { descripcion = it },
+                    label = { Text("Enfoque / descripción") },
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = titulo.isNotBlank() && categoria.isNotBlank(),
+                onClick = { onSave(titulo, categoria, descripcion) },
+            ) { Text("Guardar") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
 }
 

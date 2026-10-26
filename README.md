@@ -43,6 +43,26 @@ Proyecto académico full-stack para el Centro Integrativo Sanaesencia.
 - JWT preparado.
 - MEDIlink desacoplado y sin credenciales inventadas.
 
+## Cobertura de requerimientos (Entrega 2)
+| Código | Dónde está |
+|---|---|
+| RF-01 RBAC | Login con JWT, navegación por rol y filtro de Spring Security por rol |
+| RF-02 Perfil | Perfil: nombre, RUT, teléfono, fecha de nacimiento y **edad calculada** |
+| RF-03 Tienda | Catálogo, carrito, pago demo y **Mis pedidos** |
+| RF-04 Stock | Admin → Tienda: crear, editar, eliminar, habilitar/deshabilitar; sin stock se deshabilita solo |
+| RF-05 Terapeutas | Admin → Equipo: crear (sin registro previo), editar especialidad, estado de agenda y **deshabilitar cuenta** |
+| RF-06 Disponibilidad | Agendar: horas libres por profesional y **boxes libres** por bloque |
+| RF-07 Reserva 15 h | Agendar (validación en app y backend) |
+| RF-08 Modificar/cancelar 15 h | Mis citas: **Reagendar** y Cancelar; Admin → Citas: reagendar y cancelar |
+| RF-09 Agenda terapeuta | Inicio profesional y Mis horas (futuras y pasadas) |
+| RF-10 Historial | Mis horas → Ver historial del paciente (solo pacientes asignados) |
+| RF-11 Boxes | Admin → Boxes: habilitar/pausar y **ocupación por día** |
+| RF-12 Deserción | Admin → Inicio: alertas de 21 días sin sesión |
+| RF-13 Notificaciones | Recordatorios locales + FCM (ver sección Firebase) |
+| RF-14 MEDIlink | Admin → Inicio → Sincronizar (ver sección MEDIlink) |
+| RF-15 GPS | Inicio paciente: distancia a la sede y "Cómo llegar" |
+| RNF-06 | Spring Security con filtro JWT, sesiones stateless y reglas por rol (`/admin/**` solo ADMIN, etc.) |
+
 ## Sesión y permisos
 - El backend responde **401** cuando falta el token, es inválido o expiró, y **403** cuando el rol no tiene permiso. Los errores de datos siguen siendo 400 con un `mensaje` legible.
 - La app guarda la sesión: al abrirla entra directo al inicio de su rol. Si el backend responde 401, cierra la sesión y vuelve al login con el aviso "Tu sesión expiró".
@@ -77,11 +97,14 @@ Abrir `SanaesenciaApp` en Android Studio.
 El emulador Android usa `http://10.0.2.2:8080/api/` (el backend tiene que estar corriendo en el mismo PC).
 Para un celular físico, cambiar `API_BASE_URL` en `app/build.gradle.kts` por la IP local del PC (ej. `http://192.168.1.20:8080/api/`).
 
-## Firebase
-No se incluyen credenciales. Agregar `google-services.json` y dependencias Firebase cuando se conecte el proyecto real.
+## Firebase (RF-13 notificaciones)
+- Sin configurar nada, la app ya muestra **recordatorios locales**: aviso 24 h antes de cada cita, alerta de inactividad (21 días sin sesión) y promociones nuevas (WorkManager, cada 6 horas).
+- Para recibir además **push de Firebase Cloud Messaging**: crear el proyecto en Firebase, descargar `google-services.json` y dejarlo en `SanaesenciaApp/app/`. El plugin de Google Services se activa solo si ese archivo existe. Al iniciar sesión, el token del teléfono se guarda en el backend (`PUT /api/auth/push-token`).
+- `google-services.json` no se sube a GitHub.
 
-## MEDIlink
-No se inventan endpoints, API keys ni credenciales. Se dejó un adaptador vacío para una futura integración oficial.
+## MEDIlink (RF-14)
+- El admin tiene el botón **Sincronizar** en su inicio (`POST /api/admin/medilink/sincronizar`).
+- No se inventan endpoints ni credenciales: se configuran con las variables `MEDILINK_BASE_URL`, `MEDILINK_CITAS_PATH` y `MEDILINK_API_KEY`. Mientras falten, la sincronización responde "MEDIlink sin configurar" e indica cuántas citas quedan listas para enviar.
 
 ## Release
 Configurar un keystore propio desde Android Studio. Nunca subir keystore, passwords, secretos JWT o `google-services.json` a GitHub.

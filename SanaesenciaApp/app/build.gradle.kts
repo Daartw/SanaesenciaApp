@@ -7,6 +7,13 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// RF-13: el plugin de Google Services se aplica solo cuando el proyecto tiene su google-services.json
+// (las credenciales de Firebase no se suben a GitHub). Sin él, la app compila igual y usa
+// recordatorios locales; con él, además recibe notificaciones push de FCM.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "cl.sanaesencia.app"
     compileSdk = 35
@@ -72,6 +79,11 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
+
+    // RF-13: notificaciones (FCM + recordatorios programados)
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-messaging")
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     testImplementation("junit:junit:4.13.2")
 }

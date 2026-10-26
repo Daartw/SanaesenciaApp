@@ -33,6 +33,12 @@ interface SanaesenciaApi {
         @Body request: ActualizarPerfilRequest
     ): PerfilResponse
 
+    // RF-13: registra el token de Firebase del teléfono para recibir notificaciones push
+    @PUT("auth/push-token")
+    suspend fun registrarTokenPush(
+        @Body request: TokenPushRequest
+    ): Map<String, String>
+
 
     // =========================================================
     // PROFESIONALES
@@ -157,6 +163,35 @@ interface SanaesenciaApi {
     @GET("admin/productos")
     suspend fun adminProductos(): List<ProductoResponse>
 
+    // RF-08: el administrador revisa y gestiona todas las citas
+    @GET("admin/citas")
+    suspend fun adminCitas(
+        @Query("fecha") fecha: String? = null
+    ): List<CitaAdminResponse>
+
+    // RF-11: ocupación de los 8 boxes en un día
+    @GET("admin/boxes/ocupacion")
+    suspend fun adminOcupacionBoxes(
+        @Query("fecha") fecha: String
+    ): List<BoxOcupacionResponse>
+
+    // RF-05: edición y alta/baja de terapeutas
+    @PUT("admin/profesionales/{id}")
+    suspend fun adminEditarProfesional(
+        @Path("id") id: Long,
+        @Body request: ProfesionalEditRequest
+    ): ProfesionalResponse
+
+    @PUT("admin/profesionales/{id}/cuenta")
+    suspend fun adminCuentaProfesional(
+        @Path("id") id: Long,
+        @Body request: CuentaActivaRequest
+    ): ProfesionalResponse
+
+    // RF-14: sincronización con MEDIlink
+    @POST("admin/medilink/sincronizar")
+    suspend fun adminSincronizarMedilink(): MedilinkSyncResponse
+
     @DELETE("admin/productos/{id}")
     suspend fun adminEliminarProducto(
         @Path("id") id: Long
@@ -223,7 +258,10 @@ data class ProfesionalResponse(
     val certificaciones: String = "",
     val anosExperiencia: Int = 0,
     val estado: EstadoProfesional,
-    val fotoUrl: String? = null
+    val fotoUrl: String? = null,
+    val nombre: String = "",
+    val email: String = "",
+    val cuentaActiva: Boolean = true
 )
 
 data class ProductoResponse(
@@ -244,11 +282,18 @@ data class BoxResponse(
     val estaHabilitado: Boolean
 )
 
+// Coincide con la entidad Promocion del backend.
 data class PromocionResponse(
     val id: Long,
-    val nombre: String,
-    val descripcion: String,
-    val porcentajeDescuento: Int
+    val titulo: String = "",
+    val porcentajeDescuento: Double = 0.0,
+    val fechaInicio: String? = null,
+    val fechaFin: String? = null,
+    val esActiva: Boolean = true
+)
+
+data class TokenPushRequest(
+    val token: String
 )
 
 data class CitaResponse(
@@ -268,7 +313,8 @@ data class DisponibilidadResponse(
     val horaInicio: String,
     val horaFin: String,
     val disponible: Boolean,
-    val motivo: String?
+    val motivo: String?,
+    val boxesLibres: Int = 0
 )
 
 data class FichaClinicaResponse(
@@ -345,9 +391,11 @@ data class PedidoItemRequest(
 )
 
 data class PromocionRequest(
-    val nombre: String,
-    val descripcion: String,
-    val porcentajeDescuento: Int
+    val titulo: String,
+    val porcentajeDescuento: Double,
+    val fechaInicio: String? = null,
+    val fechaFin: String? = null,
+    val esActiva: Boolean = true
 )
 
 // El backend recibe {"estado": "DISPONIBLE" | "AUSENTE" | ...}
@@ -362,6 +410,46 @@ data class EstadoBoxRequest(
 
 data class EstadoProductoRequest(
     val activo: Boolean
+)
+
+data class ProfesionalEditRequest(
+    val titulo: String,
+    val categoriaEspecialidad: String,
+    val descripcionEnfoque: String? = null,
+    val anosExperiencia: Int? = null
+)
+
+data class CuentaActivaRequest(
+    val activo: Boolean
+)
+
+data class CitaAdminResponse(
+    val id: Long,
+    val pacienteId: Long,
+    val pacienteNombre: String = "",
+    val profesionalId: Long,
+    val profesionalNombre: String = "",
+    val boxId: Long? = null,
+    val numeroBox: Int? = null,
+    val fecha: String,
+    val horaInicio: String,
+    val horaFin: String,
+    val modalidad: ModalidadCita,
+    val estado: EstadoCita
+)
+
+data class BoxOcupacionResponse(
+    val id: Long,
+    val numeroBox: Int,
+    val estaHabilitado: Boolean,
+    val citas: List<CitaAdminResponse> = emptyList()
+)
+
+data class MedilinkSyncResponse(
+    val estado: String,
+    val mensaje: String,
+    val citasEnviadas: Int = 0,
+    val citasPendientes: Int = 0
 )
 
 /**

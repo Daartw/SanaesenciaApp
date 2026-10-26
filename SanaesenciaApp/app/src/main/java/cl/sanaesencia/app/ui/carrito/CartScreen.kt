@@ -33,6 +33,8 @@ import cl.sanaesencia.app.data.local.CarritoItemEntity
 import cl.sanaesencia.app.domain.model.ItemCatalogo
 import cl.sanaesencia.app.domain.model.Producto
 import cl.sanaesencia.app.presentation.CartViewModel
+import cl.sanaesencia.app.presentation.UiState
+import cl.sanaesencia.app.data.remote.PedidoResponse
 import cl.sanaesencia.app.ui.common.CampoFormulario
 
 @Composable
@@ -49,6 +51,12 @@ fun CartScreen(
     var confirm by remember {
         mutableStateOf(false)
     }
+
+    var showPedidos by remember {
+        mutableStateOf(false)
+    }
+
+    val pedidos by vm.pedidos.collectAsState()
 
     var showPayment by remember {
         mutableStateOf(false)
@@ -82,11 +90,22 @@ fun CartScreen(
                 style = MaterialTheme.typography.headlineSmall,
             )
 
-            TextButton(
-                onClick = onBack,
-                modifier = Modifier.heightIn(min = 48.dp),
-            ) {
-                Text("Volver")
+            Row {
+                TextButton(
+                    onClick = {
+                        vm.cargarPedidos()
+                        showPedidos = true
+                    },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
+                    Text("Mis pedidos")
+                }
+                TextButton(
+                    onClick = onBack,
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
+                    Text("Volver")
+                }
             }
         }
 
@@ -257,6 +276,53 @@ fun CartScreen(
                 modifier = Modifier.padding(8.dp),
             )
         }
+    }
+
+    // RF-03: historial de pedidos del paciente
+    if (showPedidos) {
+        AlertDialog(
+            onDismissRequest = { showPedidos = false },
+            confirmButton = {
+                TextButton(onClick = { showPedidos = false }) { Text("Cerrar") }
+            },
+            title = { Text("Mis pedidos") },
+            text = {
+                when (val p = pedidos) {
+                    is UiState.Cargando -> CircularProgressIndicator()
+                    is UiState.Error -> Text(p.mensaje, color = MaterialTheme.colorScheme.error)
+                    is UiState.Vacio -> Text("Aún no tienes pedidos.")
+                    is UiState.Exito<List<PedidoResponse>> -> LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.heightIn(max = 420.dp),
+                    ) {
+                        items(items = p.datos, key = { it.id }) { pedido ->
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                                ) {
+                                    Text(
+                                        "Pedido #${pedido.id} · ${pedido.estado.replace('_', ' ')}",
+                                        style = MaterialTheme.typography.titleSmall,
+                                    )
+                                    pedido.items.forEach { item ->
+                                        Text(
+                                            "${item.cantidad} × ${item.nombreProducto}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                    Text(
+                                        "Total: $${"%,d".format(pedido.total).replace(',', '.')} CLP",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+        )
     }
 
     if (confirm) {

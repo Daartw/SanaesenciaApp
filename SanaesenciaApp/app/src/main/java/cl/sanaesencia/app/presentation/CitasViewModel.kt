@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import cl.sanaesencia.app.data.remote.CitaResponse
 import cl.sanaesencia.app.data.remote.CrearCitaRequest
 import cl.sanaesencia.app.data.remote.DisponibilidadResponse
+import cl.sanaesencia.app.data.remote.ReagendarCitaRequest
 import cl.sanaesencia.app.data.remote.mensajeUsuario
 import cl.sanaesencia.app.data.repository.CitaRepository
 import cl.sanaesencia.app.domain.usecase.AgendarCitaUseCase
@@ -49,6 +50,16 @@ class CitasViewModel(private val repo: CitaRepository, private val agendar: Agen
         runCatching { agendar(request) }
             .onSuccess { message.value = "Cita reservada correctamente"; _creada.value = true; cargar() }
             .onFailure { message.value = it.mensajeUsuario("No fue posible reservar la cita") }
+        _enviando.value = false
+    }
+
+    /** RF-08: cambia fecha/hora/modalidad de una cita vigente (respetando las 15 horas). */
+    fun reagendar(citaId: Long, request: ReagendarCitaRequest) = viewModelScope.launch {
+        if (_enviando.value) return@launch
+        _enviando.value = true
+        runCatching { repo.reagendar(citaId, request) }
+            .onSuccess { message.value = "Cita reagendada correctamente"; _creada.value = true; cargar() }
+            .onFailure { message.value = it.mensajeUsuario("No fue posible reagendar la cita") }
         _enviando.value = false
     }
 

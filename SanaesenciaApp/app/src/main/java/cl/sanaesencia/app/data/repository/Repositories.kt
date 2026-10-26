@@ -81,7 +81,8 @@ class AuthRepository(
                 )
             )
         } catch (e: HttpException) {
-            if (e.code() in 400..403) {
+            // 403 = cuenta deshabilitada: se muestra el mensaje del servidor.
+            if (e.code() == 400 || e.code() == 401) {
                 throw IllegalArgumentException("Correo o contraseña incorrectos")
             }
             throw e

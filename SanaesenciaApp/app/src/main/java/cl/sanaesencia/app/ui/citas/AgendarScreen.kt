@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cl.sanaesencia.app.data.remote.CrearCitaRequest
 import cl.sanaesencia.app.data.remote.DisponibilidadResponse
+import cl.sanaesencia.app.data.remote.ReagendarCitaRequest
 import cl.sanaesencia.app.domain.model.ModalidadCita
 import cl.sanaesencia.app.presentation.CatalogViewModel
 import cl.sanaesencia.app.presentation.CitasViewModel
@@ -77,7 +78,10 @@ fun AgendarScreen(
     vm: CitasViewModel,
     catalogVm: CatalogViewModel,
     onBack: () -> Unit,
+    // RF-08: si viene el id de una cita, la pantalla sirve para reagendarla.
+    citaId: Long? = null,
 ) {
+    val reagendando = citaId != null
     // Se agenda desde mañana: el backend exige 15 horas de anticipación.
     val primerDia = remember { LocalDate.now().plusDays(1) }
     val dias = remember { (0 until 21).map { primerDia.plusDays(it.toLong()) } }
@@ -114,8 +118,8 @@ fun AgendarScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
         EncabezadoPantalla(
-            titulo = "Agendar cita",
-            subtitulo = "Elige día, hora y modalidad",
+            titulo = if (reagendando) "Reagendar cita" else "Agendar cita",
+            subtitulo = if (reagendando) "Elige el nuevo día, hora y modalidad" else "Elige día, hora y modalidad",
             navegacion = { BotonVolver(onBack) },
         )
 
@@ -189,7 +193,10 @@ fun AgendarScreen(
                     is UiState.Vacio -> SinHorarios()
 
                     is UiState.Exito<List<DisponibilidadResponse>> -> {
-                        val disponibles = s.datos.filter { it.disponible }
+                        // RF-06: en modalidad presencial solo se ofrecen horas con algún box libre.
+                        val disponibles = s.datos.filter {
+                            it.disponible && (modalidad == ModalidadCita.ONLINE || it.boxesLibres > 0)
+                        }
                         if (disponibles.isEmpty()) {
                             SinHorarios()
                         } else {
@@ -207,10 +214,18 @@ fun AgendarScreen(
                                                 ?.let { vm.validarCita(date, it) }
                                         },
                                         label = {
-                                            Text(
-                                                FormatoFecha.hora(slot.horaInicio),
-                                                fontWeight = FontWeight.SemiBold,
-                                            )
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text(
+                                                    FormatoFecha.hora(slot.horaInicio),
+                                                    fontWeight = FontWeight.SemiBold,
+                                                )
+                                                if (modalidad == ModalidadCita.PRESENCIAL) {
+                                                    Text(
+                                                        "${slot.boxesLibres} box${if (slot.boxesLibres == 1) "" else "es"}",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                    )
+                                                }
+                                            }
                                         },
                                         shape = RoundedCornerShape(12.dp),
                                         colors = FilterChipDefaults.filterChipColors(
@@ -237,7 +252,10 @@ fun AgendarScreen(
                     opciones.forEachIndexed { index, opcion ->
                         SegmentedButton(
                             selected = modalidad == opcion,
-                            onClick = { modalidad = opcion },
+                            onClick = {
+                                modalidad = opcion
+                                if (opcion == ModalidadCita.PRESENCIAL && (selected?.boxesLibres ?: 1) == 0) selected = null
+                            },
                             shape = SegmentedButtonDefaults.itemShape(index = index, count = opciones.size),
                             icon = {
                                 Icon(
@@ -296,7 +314,7 @@ fun AgendarScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 BotonPrimario(
-                    texto = "Confirmar cita",
+                    texto = if (reagendando) "Confirmar cambio" else "Confirmar cita",
                     icono = Icons.Default.EventAvailable,
                     cargando = enviando,
                     enabled = slot != null && vm.validarCitaSilencioso(
@@ -305,16 +323,30 @@ fun AgendarScreen(
                     ),
                     onClick = {
                         val s = selected ?: return@BotonPrimario
-                        vm.crear(
-                            CrearCitaRequest(
-                                profesionalId = profesionalId,
-                                boxId = null,
-                                fecha = date.toString(),
-                                horaInicio = s.horaInicio,
-                                horaFin = s.horaFin,
-                                modalidad = modalidad,
+                        if (citaId != null) {
+                            vm.reagendar(
+                                citaId,
+                                ReagendarCitaRequest(
+                                    profesionalId = profesionalId,
+                                    boxId = null,
+                                    fecha = date.toString(),
+                                    horaInicio = s.horaInicio,
+                                    horaFin = s.horaFin,
+                                    modalidad = modalidad,
+                                )
                             )
-                        )
+                        } else {
+                            vm.crear(
+                                CrearCitaRequest(
+                                    profesionalId = profesionalId,
+                                    boxId = null,
+                                    fecha = date.toString(),
+                                    horaInicio = s.horaInicio,
+                                    horaFin = s.horaFin,
+                                    modalidad = modalidad,
+                                )
+                            )
+                        }
                     },
                 )
             }

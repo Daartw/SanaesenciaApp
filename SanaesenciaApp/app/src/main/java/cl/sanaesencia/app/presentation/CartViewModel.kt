@@ -3,6 +3,7 @@ package cl.sanaesencia.app.presentation
 import androidx.lifecycle.viewModelScope
 
 import cl.sanaesencia.app.data.local.CarritoItemEntity
+import cl.sanaesencia.app.data.remote.PedidoResponse
 import cl.sanaesencia.app.data.remote.mensajeUsuario
 import cl.sanaesencia.app.data.repository.CartRepository
 import cl.sanaesencia.app.data.repository.PedidoRepository
@@ -22,7 +23,7 @@ import kotlinx.coroutines.launch
 
 class CartViewModel(
     private val repo: CartRepository,
-    private val pedidos: PedidoRepository,
+    private val pedidosRepo: PedidoRepository,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Main.immediate,
 ) : BaseViewModel() {
     val items = repo.items()
@@ -57,12 +58,19 @@ class CartViewModel(
             return@launch
         }
         _paying.value = true
-        runCatching { pedidos.pagar(rows) }
+        runCatching { pedidosRepo.pagar(rows) }
             .onSuccess { repo.clear(); message.value = "Pago aprobado y pedido #${it.id} confirmado" }
             .onFailure { message.value = it.mensajeUsuario("No fue posible procesar el pago") }
             .also { _paying.value = false }
     }
     fun clearMessage() { message.value = null }
+
+    /** RF-03: historial de pedidos del paciente. */
+    val pedidos = MutableStateFlow<UiState<List<PedidoResponse>>>(UiState.Vacio)
+
+    fun cargarPedidos() = viewModelScope.launch(dispatcher) {
+        ejecutar(pedidos, { it.isEmpty() }) { this@CartViewModel.pedidosRepo.historial() }
+    }
     private fun invalid(result: cl.sanaesencia.app.domain.validacion.ResultadoValidacion) = (result as? cl.sanaesencia.app.domain.validacion.ResultadoValidacion.Invalido)?.mensaje
 }
 

@@ -17,6 +17,9 @@ data class ProfesionalResponse(
     val anosExperiencia: Int,
     val estado: EstadoProfesional,
     val fotoUrl: String?,
+    val nombre: String = "",
+    val email: String = "",
+    val cuentaActiva: Boolean = true,
 )
 
 data class ProductoResponse(
@@ -68,6 +71,8 @@ data class DisponibilidadResponse(
     val horaFin: LocalTime,
     val disponible: Boolean,
     val motivo: String?,
+    /** Boxes presenciales libres en ese bloque (RF-06: disponibilidad por profesional y box). */
+    val boxesLibres: Int = 0,
 )
 
 data class FichaClinicaResponse(
@@ -131,6 +136,52 @@ data class ProductoAdminRequest(
     val estaActivo: Boolean = true,
 )
 data class EstadoProductoRequest(val activo: Boolean)
+
+/** RF-13: token FCM del dispositivo. */
+data class TokenPushRequest(val token: String)
+
+/** RF-05: edición de terapeutas. */
+data class ProfesionalEditRequest(
+    val titulo: String,
+    val categoriaEspecialidad: String,
+    val descripcionEnfoque: String? = null,
+    val anosExperiencia: Int? = null,
+)
+
+/** RF-05: alta/baja de la cuenta del terapeuta. */
+data class CuentaActivaRequest(val activo: Boolean)
+
+/** RF-08: vista de citas para el administrador. */
+data class CitaAdminResponse(
+    val id: Long,
+    val pacienteId: Long,
+    val pacienteNombre: String,
+    val profesionalId: Long,
+    val profesionalNombre: String,
+    val boxId: Long?,
+    val numeroBox: Int?,
+    val fecha: LocalDate,
+    val horaInicio: LocalTime,
+    val horaFin: LocalTime,
+    val modalidad: ModalidadCita,
+    val estado: EstadoCita,
+)
+
+/** RF-11: ocupación de cada box en un día. */
+data class BoxOcupacionResponse(
+    val id: Long,
+    val numeroBox: Int,
+    val estaHabilitado: Boolean,
+    val citas: List<CitaAdminResponse>,
+)
+
+/** RF-14: resultado de la sincronización con MEDIlink. */
+data class MedilinkSyncResponse(
+    val estado: String,
+    val mensaje: String,
+    val citasEnviadas: Int,
+    val citasPendientes: Int,
+)
 
 /**
  * Para crear un profesional hay dos opciones:

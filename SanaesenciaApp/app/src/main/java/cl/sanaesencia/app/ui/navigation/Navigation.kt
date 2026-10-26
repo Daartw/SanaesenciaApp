@@ -1,6 +1,14 @@
 package cl.sanaesencia.app.ui.navigation
 
+import android.Manifest
+import android.os.Build
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import cl.sanaesencia.app.services.Notificaciones
+import cl.sanaesencia.app.services.RecordatoriosWorker
+import cl.sanaesencia.app.services.SanaesenciaFirebaseService
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -66,7 +74,8 @@ object Routes {
     const val AGENDA = "agenda"
     const val CITAS = "citas"
     const val CARRITO = "carrito"
-    const val AGENDAR = "agendar/{profesionalId}"
+    // citaId es opcional: si viene, la pantalla reagenda esa cita (RF-08).
+    const val AGENDAR = "agendar/{profesionalId}?citaId={citaId}"
     const val PROF = PROFESIONALES
     const val PROFESSIONAL_HOME = AGENDA
     const val AGENDA_DETALLE = "agenda_detalle"
@@ -88,6 +97,7 @@ private val PACIENTE_O_PROFESIONAL = setOf(RolUsuario.PACIENTE, RolUsuario.PROFE
 fun SanaesenciaNavGraph(container: AppContainer) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     // Sesión actual (null = nadie conectado). Es la única fuente de verdad para los permisos.
     // Se actualiza en el mismo momento del login/logout, así ninguna pantalla ve un estado a medias.
@@ -157,6 +167,12 @@ fun SanaesenciaNavGraph(container: AppContainer) {
                     session = Session(response.token, response.usuarioId, response.rol, response.nombre)
                     container.loginViewModel.resetState()
 
+                    // RF-13: registra el teléfono para notificaciones y revisa recordatorios pendientes.
+                    if (response.rol == RolUsuario.PACIENTE) {
+                        runCatching { RecordatoriosWorker.ejecutarAhora(context) }
+                    }
+                    SanaesenciaFirebaseService.registrarToken(context)
+
                     navController.navigate(Routes.inicioDe(response.rol)) {
                         popUpTo(navController.graph.id) { inclusive = true }
                         launchSingleTop = true
@@ -168,6 +184,7 @@ fun SanaesenciaNavGraph(container: AppContainer) {
         // INICIO DEL PACIENTE
         composable(Routes.HOME) {
             ConRol(session, SOLO_PACIENTE, navController) { s ->
+                PedirPermisoNotificaciones()
                 ScreenWithBottomBar(navController, s.role) {
                     HomeScreen(
                         nombre = s.name,
@@ -223,6 +240,9 @@ fun SanaesenciaNavGraph(container: AppContainer) {
                     CitasScreen(
                         vm = container.citasViewModel,
                         onNew = { navController.navigate(Routes.PROFESIONALES) },
+                        onReagendar = { cita ->
+                            navController.navigate("agendar/${cita.profesionalId}?citaId=${cita.id}")
+                        },
                     )
                 }
             }
@@ -232,10 +252,15 @@ fun SanaesenciaNavGraph(container: AppContainer) {
         composable(
             route = Routes.AGENDAR,
             arguments = listOf(
-                navArgument("profesionalId") { type = NavType.LongType }
+                navArgument("profesionalId") { type = NavType.LongType },
+                navArgument("citaId") {
+                    type = NavType.LongType
+                    defaultValue = -1L
+                },
             )
         ) { entry ->
             val profesionalId = entry.arguments?.getLong("profesionalId") ?: return@composable
+            val citaId = entry.arguments?.getLong("citaId")?.takeIf { it > 0 }
 
             ConRol(session, SOLO_PACIENTE, navController) {
                 AgendarScreen(
@@ -243,6 +268,7 @@ fun SanaesenciaNavGraph(container: AppContainer) {
                     vm = container.citasViewModel,
                     catalogVm = container.catalogViewModel,
                     onBack = { navController.popBackStack() },
+                    citaId = citaId,
                 )
             }
         }
@@ -331,6 +357,18 @@ private fun ConRol(
         content(actual!!)
     } else {
         SplashCarga()
+    }
+}
+
+/** RF-13: en Android 13+ las notificaciones requieren permiso; se pide una vez al entrar al inicio. */
+@Composable
+private fun PedirPermisoNotificaciones() {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !Notificaciones.tienePermiso(context)) {
+            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 }
 

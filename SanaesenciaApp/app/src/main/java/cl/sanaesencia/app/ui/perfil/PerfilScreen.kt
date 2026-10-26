@@ -552,6 +552,15 @@ private fun PerfilForm(
                         MaterialTheme.typography.bodySmall,
                 )
 
+                // RF-02: la edad se calcula a partir de la fecha de nacimiento.
+                edadDesde(fechaNacimiento)?.let { edad ->
+                    Text(
+                        "Edad: $edad años",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+
                 // ====================================================
                 // CONSENTIMIENTO
                 // ====================================================
@@ -805,6 +814,13 @@ fun formatearRut(raw: String): String {
     }
     return "${sb.reverse()}-$dv"
 }
+
+/** Edad en años a partir de "dd/MM/yyyy"; null si la fecha no está completa o no es válida. */
+fun edadDesde(fechaUi: String): Int? = runCatching {
+    val nacimiento = java.time.LocalDate.parse(fechaUi, PerfilViewModel.FECHA_UI)
+    val hoy = java.time.LocalDate.now()
+    if (nacimiento.isAfter(hoy)) null else java.time.Period.between(nacimiento, hoy).years
+}.getOrNull()
 
 /** El backend entrega la fecha como "yyyy-MM-dd"; la pantalla la muestra como "dd/MM/yyyy". */
 fun fechaIsoAUi(iso: String?): String {

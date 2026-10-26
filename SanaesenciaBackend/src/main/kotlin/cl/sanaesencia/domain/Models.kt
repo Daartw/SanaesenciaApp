@@ -21,7 +21,14 @@ class Usuario(
     var consentimientoSalud: Boolean = false,
     @Enumerated(EnumType.STRING) var rol: RolUsuario = RolUsuario.PACIENTE,
     var passwordHash: String = "",
-)
+    // null se trata como activo, así las bases MySQL existentes no dejan cuentas bloqueadas al agregar la columna.
+    var activo: Boolean? = true,
+    // RF-13: token de Firebase Cloud Messaging del teléfono del usuario.
+    @Column(length = 500) var pushToken: String? = null,
+) {
+    @get:jakarta.persistence.Transient
+    val estaActivo: Boolean get() = activo != false
+}
 
 @Entity
 @Table(name = "profesionales")

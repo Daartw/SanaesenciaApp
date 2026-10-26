@@ -2,6 +2,7 @@ package cl.sanaesencia.service
 
 import cl.sanaesencia.api.*
 import cl.sanaesencia.domain.*
+import cl.sanaesencia.integration.MedilinkApi
 import cl.sanaesencia.repository.*
 import cl.sanaesencia.security.JwtService
 import cl.sanaesencia.security.NoAutenticadoException
@@ -20,7 +21,37 @@ import java.time.temporal.ChronoUnit
 private val CHILE_CLOCK: Clock = Clock.system(ZoneId.of("America/Santiago"))
 
 private fun Usuario.toPerfil() = PerfilResponse(id, rut, nombreCompleto, email, telefono, fechaNacimiento, consentimientoSalud)
-private fun Profesional.toResponse() = ProfesionalResponse(id, usuarioId, titulo, categoriaEspecialidad, descripcionEnfoque, certificaciones, anosExperiencia, estado, fotoUrl)
+private fun Profesional.toResponse(usuario: Usuario? = null) = ProfesionalResponse(
+    id, usuarioId, titulo, categoriaEspecialidad, descripcionEnfoque, certificaciones, anosExperiencia, estado, fotoUrl,
+    nombre = usuario?.nombreCompleto.orEmpty(),
+    email = usuario?.email.orEmpty(),
+    cuentaActiva = usuario?.estaActivo ?: true,
+)
+
+/** Profesionales con el nombre y estado de cuenta de su usuario (una sola consulta de usuarios). */
+fun List<Profesional>.conUsuarios(users: UsuarioRepository): List<ProfesionalResponse> {
+    val porId = users.findAllById(map { it.usuarioId }).associateBy { it.id }
+    return map { it.toResponse(porId[it.usuarioId]) }
+}
+
+private fun Cita.toAdmin(usuarios: Map<Long, Usuario>, profesionales: Map<Long, Profesional>, boxes: Map<Long, Box>): CitaAdminResponse {
+    val prof = profesionales[profesionalId]
+    val nombreProf = prof?.let { p -> usuarios[p.usuarioId]?.nombreCompleto?.takeIf { it.isNotBlank() } ?: p.titulo } ?: "Profesional #$profesionalId"
+    return CitaAdminResponse(
+        id = id,
+        pacienteId = pacienteId,
+        pacienteNombre = usuarios[pacienteId]?.nombreCompleto ?: "Paciente #$pacienteId",
+        profesionalId = profesionalId,
+        profesionalNombre = nombreProf,
+        boxId = boxId,
+        numeroBox = boxId?.let { boxes[it]?.numeroBox },
+        fecha = fecha,
+        horaInicio = horaInicio,
+        horaFin = horaFin,
+        modalidad = modalidad,
+        estado = estado,
+    )
+}
 private fun Producto.toResponse() = ProductoResponse(id, nombre, descripcion, precio, stock, imagenUrl, etiquetasTerapeuticas, estaActivo)
 private fun Box.toResponse() = BoxResponse(id, numeroBox, estaHabilitado)
 private fun Cita.toResponse() = CitaResponse(id, pacienteId, profesionalId, boxId, fecha, horaInicio, horaFin, modalidad, estado)
@@ -34,10 +65,21 @@ class AuthService(
     fun login(r: LoginRequest): LoginResponse {
         val u = users.findByEmail(r.email.trim().lowercase()) ?: throw IllegalArgumentException("Credenciales inválidas")
         require(encoder.matches(r.password, u.passwordHash)) { "Credenciales inválidas" }
+        if (!u.estaActivo) throw SinPermisoException("Tu cuenta está deshabilitada. Contacta a la administración del centro.")
         return LoginResponse(jwt.generate(u.id, u.email, u.rol), u.id, u.nombreCompleto, u.rol)
     }
 
     fun perfil(authorization: String?): PerfilResponse = users.findById(jwt.userIdFromBearer(authorization)).orElseThrow { NoAutenticadoException("Tu sesión ya no es válida. Inicia sesión nuevamente") }.toPerfil()
+
+    /** RF-13: guarda el token FCM para enviar recordatorios y promociones al teléfono. */
+    @Transactional
+    fun registrarTokenPush(authorization: String?, r: TokenPushRequest): Map<String, String> {
+        val u = users.findById(jwt.userIdFromBearer(authorization)).orElseThrow { NoAutenticadoException("Tu sesión ya no es válida. Inicia sesión nuevamente") }
+        require(r.token.isNotBlank()) { "Token inválido" }
+        u.pushToken = r.token.trim()
+        users.save(u)
+        return mapOf("mensaje" to "Notificaciones activadas")
+    }
 
     @Transactional
     fun actualizarPerfil(authorization: String?, r: ActualizarPerfilRequest): PerfilResponse {
@@ -64,6 +106,12 @@ class CitaService(
     private val jwt: JwtService,
 ) {
     private val cancelada = EstadoCita.CANCELADA
+
+    private fun cuentaActiva(p: Profesional): Boolean =
+        users.findById(p.usuarioId).map { it.estaActivo }.orElse(true)
+
+    private fun esAdmin(userId: Long): Boolean =
+        users.findById(userId).map { it.rol == RolUsuario.ADMIN }.orElse(false)
 
     private fun validarAnticipacion(fecha: LocalDate, hora: LocalTime) {
         require(!LocalDateTime.of(fecha, hora).isBefore(LocalDateTime.now(CHILE_CLOCK).plusHours(15))) {
@@ -96,7 +144,7 @@ class CitaService(
         if (paciente.rol != RolUsuario.PACIENTE) throw SinPermisoException("Solo un paciente puede reservar citas")
         validarHorarioBase(r.fecha, r.horaInicio, r.horaFin)
         val profesional = profesionales.findById(r.profesionalId).orElseThrow { IllegalArgumentException("Profesional no encontrado") }
-        require(profesional.estado == EstadoProfesional.DISPONIBLE) { "El profesional no tiene agenda disponible" }
+        require(profesional.estado == EstadoProfesional.DISPONIBLE && cuentaActiva(profesional)) { "El profesional no tiene agenda disponible" }
         val boxId = validarModalidad(r.boxId, r.modalidad)
         require(!citas.profesionalSolapaExcluyendo(-1, r.profesionalId, r.fecha, r.horaInicio, r.horaFin, cancelada)) { "El profesional ya está ocupado" }
         require(!citas.pacienteSolapa(pacienteId, r.fecha, r.horaInicio, r.horaFin, cancelada)) { "El paciente ya tiene una cita en ese horario" }
@@ -110,7 +158,7 @@ class CitaService(
     fun cancelar(authorization: String?, id: Long): Map<String, String> {
         val userId = jwt.userIdFromBearer(authorization)
         val c = citas.findById(id).orElseThrow { IllegalArgumentException("Cita no encontrada") }
-        if (c.pacienteId != userId) throw SinPermisoException("No puedes cancelar esta cita")
+        if (c.pacienteId != userId && !esAdmin(userId)) throw SinPermisoException("No puedes cancelar esta cita")
         validarAnticipacion(c.fecha, c.horaInicio)
         c.estado = EstadoCita.CANCELADA
         citas.save(c)
@@ -121,14 +169,15 @@ class CitaService(
     fun reagendar(authorization: String?, id: Long, r: ReagendarCitaRequest): CitaResponse {
         val userId = jwt.userIdFromBearer(authorization)
         val c = citas.findById(id).orElseThrow { IllegalArgumentException("Cita no encontrada") }
-        if (c.pacienteId != userId) throw SinPermisoException("No puedes modificar esta cita")
+        if (c.pacienteId != userId && !esAdmin(userId)) throw SinPermisoException("No puedes modificar esta cita")
+        require(c.estado == EstadoCita.RESERVADA || c.estado == EstadoCita.CONFIRMADA) { "Solo se pueden reagendar citas vigentes" }
         validarAnticipacion(c.fecha, c.horaInicio)
         validarHorarioBase(r.fecha, r.horaInicio, r.horaFin)
         val p = profesionales.findById(r.profesionalId).orElseThrow { IllegalArgumentException("Profesional no encontrado") }
-        require(p.estado == EstadoProfesional.DISPONIBLE) { "El profesional no tiene agenda disponible" }
+        require(p.estado == EstadoProfesional.DISPONIBLE && cuentaActiva(p)) { "El profesional no tiene agenda disponible" }
         val boxId = validarModalidad(r.boxId, r.modalidad)
         require(!citas.profesionalSolapaExcluyendo(c.id, r.profesionalId, r.fecha, r.horaInicio, r.horaFin, cancelada)) { "El profesional ya está ocupado" }
-        require(!citas.pacienteSolapaExcluyendo(c.id, userId, r.fecha, r.horaInicio, r.horaFin, cancelada)) { "El paciente ya tiene una cita en ese horario" }
+        require(!citas.pacienteSolapaExcluyendo(c.id, c.pacienteId, r.fecha, r.horaInicio, r.horaFin, cancelada)) { "El paciente ya tiene una cita en ese horario" }
         if (boxId != null) require(!citas.boxSolapaExcluyendo(c.id, boxId, r.fecha, r.horaInicio, r.horaFin, cancelada)) { "El box ya está ocupado" }
         c.profesionalId = r.profesionalId; c.boxId = boxId; c.fecha = r.fecha; c.horaInicio = r.horaInicio; c.horaFin = r.horaFin; c.modalidad = r.modalidad
         return citas.save(c).toResponse()
@@ -136,16 +185,44 @@ class CitaService(
 
     fun disponibilidad(profesionalId: Long, fecha: LocalDate): List<DisponibilidadResponse> {
         val p = profesionales.findById(profesionalId).orElseThrow { IllegalArgumentException("Profesional no encontrado") }
+        val activo = p.estado == EstadoProfesional.DISPONIBLE && cuentaActiva(p)
+        val boxesHabilitados = boxes.findAllByOrderByNumeroBoxAsc().filter { it.estaHabilitado }
         return (9 until 17).map { hour ->
             val inicio = LocalTime.of(hour, 0); val fin = inicio.plusHours(1)
             val reason = when {
-                p.estado != EstadoProfesional.DISPONIBLE -> "Profesional no disponible"
+                !activo -> "Profesional no disponible"
                 LocalDateTime.of(fecha, inicio).isBefore(LocalDateTime.now(CHILE_CLOCK).plusHours(15)) -> "Requiere 15 horas de anticipación"
                 citas.profesionalSolapaExcluyendo(-1, profesionalId, fecha, inicio, fin, cancelada) -> "Horario ocupado"
                 else -> null
             }
-            DisponibilidadResponse(fecha, inicio, fin, reason == null, reason)
+            val libres = boxesHabilitados.count { !citas.boxSolapa(it.id, fecha, inicio, fin, cancelada) }
+            DisponibilidadResponse(fecha, inicio, fin, reason == null, reason, libres)
         }
+    }
+
+    /** RF-08: el administrador ve todas las citas (opcionalmente de un día). */
+    fun citasAdmin(fecha: LocalDate?): List<CitaAdminResponse> {
+        val lista = citas.findAll()
+            .filter { fecha == null || it.fecha == fecha }
+            .sortedWith(compareBy<Cita>({ it.fecha }, { it.horaInicio }))
+        return conNombres(lista)
+    }
+
+    /** RF-11: ocupación de los boxes en un día. */
+    fun ocupacionBoxes(fecha: LocalDate): List<BoxOcupacionResponse> {
+        val delDia = citas.findAll().filter { it.fecha == fecha && it.boxId != null && it.estado != cancelada }
+        val detalle = conNombres(delDia).groupBy { it.boxId }
+        return boxes.findAllByOrderByNumeroBoxAsc().map { b ->
+            BoxOcupacionResponse(b.id, b.numeroBox, b.estaHabilitado, detalle[b.id].orEmpty().sortedBy { it.horaInicio })
+        }
+    }
+
+    private fun conNombres(lista: List<Cita>): List<CitaAdminResponse> {
+        val profs = profesionales.findAllById(lista.map { it.profesionalId }.toSet()).associateBy { it.id }
+        val ids = lista.map { it.pacienteId }.toSet() + profs.values.map { it.usuarioId }
+        val usuarios = users.findAllById(ids).associateBy { it.id }
+        val boxesPorId = boxes.findAll().associateBy { it.id }
+        return lista.map { it.toAdmin(usuarios, profs, boxesPorId) }
     }
 
     fun agenda(authorization: String?): List<CitaResponse> {
@@ -239,7 +316,32 @@ class AdminService(
     }
     private fun requireAdmin(authorization: String?) = verificarAdmin(authorization)
     fun stockBajo(auth: String?): List<ProductoResponse> { requireAdmin(auth); return products.findAll().filter { it.estaActivo && it.stock <= 3 }.map { it.toResponse() } }
-    fun profesionales(auth: String?): List<ProfesionalResponse> { requireAdmin(auth); return professionals.findAll().map { it.toResponse() } }
+    fun profesionales(auth: String?): List<ProfesionalResponse> { requireAdmin(auth); return professionals.findAll().conUsuarios(users) }
+
+    /** RF-05: editar título, especialidad y enfoque del terapeuta. */
+    @Transactional
+    fun editarProfesional(auth: String?, id: Long, r: ProfesionalEditRequest): ProfesionalResponse {
+        requireAdmin(auth)
+        require(r.titulo.isNotBlank()) { "El título es obligatorio" }
+        require(r.categoriaEspecialidad.isNotBlank()) { "La especialidad es obligatoria" }
+        val p = professionals.findById(id).orElseThrow { IllegalArgumentException("Profesional no encontrado") }
+        p.titulo = r.titulo.trim()
+        p.categoriaEspecialidad = r.categoriaEspecialidad.trim()
+        r.descripcionEnfoque?.let { p.descripcionEnfoque = it.trim() }
+        r.anosExperiencia?.let { require(it >= 0) { "Años de experiencia inválidos" }; p.anosExperiencia = it }
+        return professionals.save(p).toResponse(users.findById(p.usuarioId).orElse(null))
+    }
+
+    /** RF-05: deshabilitar (baja) o volver a habilitar la cuenta del terapeuta. Deshabilitado no puede ingresar ni recibir reservas. */
+    @Transactional
+    fun cuentaProfesional(auth: String?, id: Long, activo: Boolean): ProfesionalResponse {
+        requireAdmin(auth)
+        val p = professionals.findById(id).orElseThrow { IllegalArgumentException("Profesional no encontrado") }
+        val u = users.findById(p.usuarioId).orElseThrow { IllegalArgumentException("La cuenta del profesional no existe") }
+        u.activo = activo
+        users.save(u)
+        return p.toResponse(u)
+    }
     fun boxes(auth: String?): List<BoxResponse> { requireAdmin(auth); return boxes.findAllByOrderByNumeroBoxAsc().map { it.toResponse() } }
     /** Todos los productos (activos e inactivos) para el panel admin. */
     fun productos(auth: String?): List<ProductoResponse> { requireAdmin(auth); return products.findAll().sortedBy { it.nombre.lowercase() }.map { it.toResponse() } }
@@ -346,14 +448,14 @@ class AdminService(
                 estado = r.estado,
                 fotoUrl = r.fotoUrl,
             )
-        ).toResponse()
+        ).toResponse(usuario)
     }
 
     companion object {
         const val CONTRASENA_INICIAL = "Demo123!"
     }
 
-    fun estadoProfesional(auth: String?, id: Long, estado: String): ProfesionalResponse { requireAdmin(auth); val p=professionals.findById(id).orElseThrow{IllegalArgumentException("Profesional no encontrado")};p.estado=runCatching{EstadoProfesional.valueOf(estado)}.getOrElse{throw IllegalArgumentException("Estado profesional inválido")};return professionals.save(p).toResponse() }
+    fun estadoProfesional(auth: String?, id: Long, estado: String): ProfesionalResponse { requireAdmin(auth); val p=professionals.findById(id).orElseThrow{IllegalArgumentException("Profesional no encontrado")};p.estado=runCatching{EstadoProfesional.valueOf(estado)}.getOrElse{throw IllegalArgumentException("Estado profesional inválido")};return professionals.save(p).toResponse(users.findById(p.usuarioId).orElse(null)) }
 }
 
 @Service
@@ -367,4 +469,32 @@ class DesercionService(
         val d = ChronoUnit.DAYS.between(ultima, LocalDate.now(CHILE_CLOCK))
         DesercionResponse(u.id, ultima.toString(), d, if (d >= dias) "ALERTA" else "NORMAL", d >= dias)
     }.filter { it.alerta }
+}
+
+
+/** RF-14: sincronización de citas con MEDIlink, lanzada desde el panel admin. */
+@Service
+class MedilinkService(
+    private val medilink: MedilinkApi,
+    private val citas: CitaRepository,
+) {
+    fun sincronizar(): MedilinkSyncResponse {
+        val vigentes = citas.findAll()
+            .filter { it.estado != EstadoCita.CANCELADA }
+            .map { CitaResponse(it.id, it.pacienteId, it.profesionalId, it.boxId, it.fecha, it.horaInicio, it.horaFin, it.modalidad, it.estado) }
+        if (!medilink.configurado) {
+            return MedilinkSyncResponse(
+                estado = "NO_CONFIGURADO",
+                mensaje = "La integración está lista, pero faltan las credenciales oficiales de MEDIlink (app.medilink.base-url, citas-path y api-key). ${vigentes.size} citas quedan listas para enviar.",
+                citasEnviadas = 0,
+                citasPendientes = vigentes.size,
+            )
+        }
+        return try {
+            val enviadas = medilink.enviarCitas(vigentes)
+            MedilinkSyncResponse("OK", "Se sincronizaron $enviadas citas con MEDIlink.", enviadas, vigentes.size - enviadas)
+        } catch (e: Exception) {
+            MedilinkSyncResponse("ERROR", "No se pudo sincronizar con MEDIlink: ${e.message}", 0, vigentes.size)
+        }
+    }
 }

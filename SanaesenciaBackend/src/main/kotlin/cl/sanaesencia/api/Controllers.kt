@@ -12,13 +12,15 @@ import org.springframework.web.bind.annotation.*
 class AuthController(private val service: AuthService) {
     @PostMapping("/login") fun login(@RequestBody r: LoginRequest) = service.login(r)
     @GetMapping("/perfil") fun perfil(@RequestHeader("Authorization", required = false) auth: String?) = service.perfil(auth)
+    @PutMapping("/push-token") fun registrarTokenPush(@RequestHeader("Authorization", required = false) auth: String?, @RequestBody r: TokenPushRequest) = service.registrarTokenPush(auth, r)
     @PutMapping("/perfil") fun actualizarPerfil(@RequestHeader("Authorization", required = false) auth: String?, @RequestBody r: ActualizarPerfilRequest) = service.actualizarPerfil(auth, r)
 }
 
 @RestController
 @RequestMapping("/profesionales")
-class ProfesionalController(private val repo: ProfesionalRepository) {
-    @GetMapping fun all() = repo.findAll().map { ProfesionalResponse(it.id,it.usuarioId,it.titulo,it.categoriaEspecialidad,it.descripcionEnfoque,it.certificaciones,it.anosExperiencia,it.estado,it.fotoUrl) }
+class ProfesionalController(private val repo: ProfesionalRepository, private val users: UsuarioRepository) {
+    // Los terapeutas con la cuenta deshabilitada no aparecen para los pacientes.
+    @GetMapping fun all() = repo.findAll().conUsuarios(users).filter { it.cuentaActiva }
 }
 
 @RestController
@@ -65,7 +67,17 @@ class PedidoController(private val service: PedidoService) {
 
 @RestController
 @RequestMapping("/admin")
-class AdminController(private val service: AdminService, private val desertion: DesercionService) {
+class AdminController(
+    private val service: AdminService,
+    private val desertion: DesercionService,
+    private val citas: CitaService,
+    private val medilink: MedilinkService,
+) {
+    @GetMapping("/citas") fun citas(@RequestHeader("Authorization", required = false) auth: String?, @RequestParam(required = false) fecha: java.time.LocalDate?): List<CitaAdminResponse> { service.verificarAdmin(auth); return citas.citasAdmin(fecha) }
+    @GetMapping("/boxes/ocupacion") fun ocupacion(@RequestHeader("Authorization", required = false) auth: String?, @RequestParam fecha: java.time.LocalDate): List<BoxOcupacionResponse> { service.verificarAdmin(auth); return citas.ocupacionBoxes(fecha) }
+    @PutMapping("/profesionales/{id}") fun editarProfesional(@RequestHeader("Authorization", required = false) auth: String?, @PathVariable id: Long, @RequestBody r: ProfesionalEditRequest) = service.editarProfesional(auth, id, r)
+    @PutMapping("/profesionales/{id}/cuenta") fun cuentaProfesional(@RequestHeader("Authorization", required = false) auth: String?, @PathVariable id: Long, @RequestBody r: CuentaActivaRequest) = service.cuentaProfesional(auth, id, r.activo)
+    @PostMapping("/medilink/sincronizar") fun sincronizarMedilink(@RequestHeader("Authorization", required = false) auth: String?): MedilinkSyncResponse { service.verificarAdmin(auth); return medilink.sincronizar() }
     @GetMapping("/stock-bajo") fun stockBajo(@RequestHeader("Authorization", required = false) auth: String?) = service.stockBajo(auth)
     @GetMapping("/desercion") fun desercion(@RequestHeader("Authorization", required = false) auth: String?): List<DesercionResponse> { service.verificarAdmin(auth); return desertion.alertas() }
     @GetMapping("/profesionales") fun profesionales(@RequestHeader("Authorization", required = false) auth: String?) = service.profesionales(auth)

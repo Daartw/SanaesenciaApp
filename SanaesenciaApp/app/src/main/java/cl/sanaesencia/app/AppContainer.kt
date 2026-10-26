@@ -19,6 +19,8 @@ import cl.sanaesencia.app.presentation.CatalogViewModel
 import cl.sanaesencia.app.presentation.CitasViewModel
 import cl.sanaesencia.app.presentation.LoginViewModel
 import cl.sanaesencia.app.presentation.PerfilViewModel
+import cl.sanaesencia.app.services.Notificaciones
+import cl.sanaesencia.app.services.RecordatoriosWorker
 import cl.sanaesencia.app.ui.admin.AdminViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -29,6 +31,9 @@ class AppContainer(context: Context) {
 
     init {
         RetrofitClient.initialize(applicationContext)
+        // RF-13: canales de notificación y revisión periódica de recordatorios.
+        Notificaciones.crearCanales(applicationContext)
+        runCatching { RecordatoriosWorker.programar(applicationContext) }
     }
 
     val sessionManager = SessionManager(applicationContext)

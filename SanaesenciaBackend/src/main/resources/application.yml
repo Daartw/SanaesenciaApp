@@ -22,3 +22,8 @@ app:
     expiration-ms: 86400000
   desercion:
     dias-inactividad: 21
+  # RF-14: credenciales oficiales de MEDIlink (vacías hasta que el centro las entregue).
+  medilink:
+    base-url: ${MEDILINK_BASE_URL:}
+    citas-path: ${MEDILINK_CITAS_PATH:}
+    api-key: ${MEDILINK_API_KEY:}

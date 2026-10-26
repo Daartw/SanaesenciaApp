@@ -59,6 +59,7 @@ import java.time.LocalDate
 fun CitasScreen(
     vm: CitasViewModel,
     onNew: () -> Unit,
+    onReagendar: (CitaResponse) -> Unit = {},
 ) {
     val state by vm.citas.collectAsState()
     val message by vm.message.collectAsState()
@@ -123,6 +124,7 @@ fun CitasScreen(
                                 CitaCard(
                                     cita = cita,
                                     onCancelar = { citaACancelar = cita },
+                                    onReagendar = { onReagendar(cita) },
                                     modifier = Modifier.animateContentSize(),
                                 )
                             }
@@ -130,7 +132,7 @@ fun CitasScreen(
                         if (pasadas.isNotEmpty()) {
                             item(key = "h-historial") { SeccionLista("Historial", pasadas.size) }
                             items(items = pasadas, key = { it.id }) { cita ->
-                                CitaCard(cita = cita, onCancelar = null)
+                                CitaCard(cita = cita, onCancelar = null, onReagendar = null)
                             }
                         }
                     }
@@ -200,6 +202,7 @@ private fun SeccionLista(titulo: String, cantidad: Int) {
 private fun CitaCard(
     cita: CitaResponse,
     onCancelar: (() -> Unit)?,
+    onReagendar: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     TarjetaBase(modifier = modifier) {
@@ -231,15 +234,35 @@ private fun CitaCard(
             texto = if (cita.modalidad == ModalidadCita.ONLINE) "Atención online" else "Presencial en la sede",
         )
 
-        if (onCancelar != null) {
-            OutlinedButton(
-                onClick = onCancelar,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 44.dp),
-            ) {
-                Text("Cancelar cita", color = MaterialTheme.colorScheme.error)
+        if (onCancelar != null || onReagendar != null) {
+            Text(
+                "Puedes reagendar o cancelar hasta 15 horas antes.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (onReagendar != null) {
+                    FilledTonalButton(
+                        onClick = onReagendar,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 44.dp),
+                    ) {
+                        Text("Reagendar")
+                    }
+                }
+                if (onCancelar != null) {
+                    OutlinedButton(
+                        onClick = onCancelar,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 44.dp),
+                    ) {
+                        Text("Cancelar", color = MaterialTheme.colorScheme.error)
+                    }
+                }
             }
         }
     }
