@@ -108,3 +108,6 @@ Para un celular físico, cambiar `API_BASE_URL` en `app/build.gradle.kts` por la
 
 ## Release
 Configurar un keystore propio desde Android Studio. Nunca subir keystore, passwords, secretos JWT o `google-services.json` a GitHub.
+
+## Autor
+DAAR — Proyecto académico DSY1105, Centro Integrativo Sanaesencia.
