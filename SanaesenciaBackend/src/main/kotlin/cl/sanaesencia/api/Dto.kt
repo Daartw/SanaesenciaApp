@@ -130,8 +130,21 @@ data class ProductoAdminRequest(
     val etiquetasTerapeuticas: String,
     val estaActivo: Boolean = true,
 )
+data class EstadoProductoRequest(val activo: Boolean)
+
+/**
+ * Para crear un profesional hay dos opciones:
+ * - Enviar nombreCompleto + email: si la cuenta no existe se crea automáticamente
+ *   (rol PROFESIONAL, contraseña inicial = password o "Demo123!").
+ * - Enviar usuarioId de una cuenta ya existente.
+ */
 data class ProfesionalAdminRequest(
-    val usuarioId: Long,
+    val usuarioId: Long? = null,
+    val nombreCompleto: String? = null,
+    val email: String? = null,
+    val telefono: String? = null,
+    val rut: String? = null,
+    val password: String? = null,
     val titulo: String,
     val categoriaEspecialidad: String,
     val descripcionEnfoque: String = "",

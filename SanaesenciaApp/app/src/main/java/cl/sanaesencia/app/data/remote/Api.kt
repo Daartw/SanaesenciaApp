@@ -154,6 +154,20 @@ interface SanaesenciaApi {
         @Body request: ProfesionalAdminRequest
     ): ProfesionalResponse
 
+    @GET("admin/productos")
+    suspend fun adminProductos(): List<ProductoResponse>
+
+    @DELETE("admin/productos/{id}")
+    suspend fun adminEliminarProducto(
+        @Path("id") id: Long
+    ): Map<String, String>
+
+    @PUT("admin/productos/{id}/activo")
+    suspend fun adminActivarProducto(
+        @Path("id") id: Long,
+        @Body request: EstadoProductoRequest
+    ): ProductoResponse
+
     @POST("admin/productos")
     suspend fun adminCrearProducto(
         @Body request: ProductoAdminRequest
@@ -346,8 +360,21 @@ data class EstadoBoxRequest(
     val habilitado: Boolean
 )
 
+data class EstadoProductoRequest(
+    val activo: Boolean
+)
+
+/**
+ * Para crear un profesional basta con nombre + correo: si la cuenta no existe,
+ * el backend la crea con la contraseña indicada (o "Demo123!").
+ */
 data class ProfesionalAdminRequest(
-    val usuarioId: Long,
+    val usuarioId: Long? = null,
+    val nombreCompleto: String? = null,
+    val email: String? = null,
+    val telefono: String? = null,
+    val rut: String? = null,
+    val password: String? = null,
     val titulo: String,
     val categoriaEspecialidad: String,
     val descripcionEnfoque: String = "",

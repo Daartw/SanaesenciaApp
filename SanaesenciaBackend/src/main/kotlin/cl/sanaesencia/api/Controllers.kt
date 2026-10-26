@@ -70,6 +70,9 @@ class AdminController(private val service: AdminService, private val desertion: 
     @GetMapping("/desercion") fun desercion(@RequestHeader("Authorization", required = false) auth: String?): List<DesercionResponse> { service.verificarAdmin(auth); return desertion.alertas() }
     @GetMapping("/profesionales") fun profesionales(@RequestHeader("Authorization", required = false) auth: String?) = service.profesionales(auth)
     @GetMapping("/boxes") fun boxes(@RequestHeader("Authorization", required = false) auth: String?) = service.boxes(auth)
+    @GetMapping("/productos") fun productos(@RequestHeader("Authorization", required = false) auth: String?) = service.productos(auth)
+    @DeleteMapping("/productos/{id}") fun eliminarProducto(@RequestHeader("Authorization", required = false) auth: String?, @PathVariable id: Long) = service.eliminarProducto(auth,id)
+    @PutMapping("/productos/{id}/activo") fun activarProducto(@RequestHeader("Authorization", required = false) auth: String?, @PathVariable id: Long, @RequestBody r: EstadoProductoRequest) = service.activarProducto(auth,id,r.activo)
     @PostMapping("/productos") fun crearProducto(@RequestHeader("Authorization", required = false) auth: String?, @RequestBody r: ProductoAdminRequest) = service.crearProducto(auth,r)
     @PutMapping("/productos/{id}") fun editarProducto(@RequestHeader("Authorization", required = false) auth: String?, @PathVariable id: Long, @RequestBody r: ProductoAdminRequest) = service.editarProducto(auth,id,r)
     @PutMapping("/boxes/{id}") fun toggleBox(@RequestHeader("Authorization", required = false) auth: String?, @PathVariable id: Long, @RequestBody r: EstadoBoxRequest) = service.toggleBox(auth,id,r)

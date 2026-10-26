@@ -121,6 +121,9 @@ class CartViewModelTest {
         override suspend fun adminBox(id: Long, request: EstadoBoxRequest) = TODO()
         override suspend fun adminCrearProfesional(request: ProfesionalAdminRequest) = TODO()
         override suspend fun adminEditarProducto(id: Long, request: ProductoAdminRequest) = TODO()
+        override suspend fun adminProductos() = TODO()
+        override suspend fun adminEliminarProducto(id: Long) = TODO()
+        override suspend fun adminActivarProducto(id: Long, request: cl.sanaesencia.app.data.remote.EstadoProductoRequest) = TODO()
         override suspend fun adminEstadoProfesional(id: Long, request: cl.sanaesencia.app.data.remote.EstadoProfesionalRequest) = TODO()
     }
 }

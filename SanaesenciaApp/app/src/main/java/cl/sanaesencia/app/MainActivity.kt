@@ -25,22 +25,18 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             SanaesenciaTheme {
-                // null = todavía leyendo la preferencia (evita que la pantalla de privacidad
-                // aparezca un instante cada vez que se abre la app).
                 val accepted by privacyManager.accepted
-                    .collectAsState<Boolean?>(initial = null)
+                    .collectAsState(initial = false)
 
                 val scope = rememberCoroutineScope()
 
-                when (accepted) {
-                    null -> Unit
-                    false -> PrivacyGateScreen(
+                if (!accepted) {
+                    PrivacyGateScreen(
                         privacyManager = privacyManager,
                         scope = scope
                     )
-                    true -> SanaesenciaNavGraph(
-                        container = container
-                    )
+                } else {
+                    SanaesenciaNavGraph(container)
                 }
             }
         }

@@ -17,6 +17,7 @@ import cl.sanaesencia.app.data.remote.LoginRequest
 import cl.sanaesencia.app.data.remote.LoginResponse
 import cl.sanaesencia.app.data.remote.PedidoItemRequest
 import cl.sanaesencia.app.data.remote.PedidoResponse
+import cl.sanaesencia.app.data.remote.ProductoResponse
 import cl.sanaesencia.app.data.remote.ProfesionalResponse
 import cl.sanaesencia.app.data.remote.ReagendarCitaRequest
 import cl.sanaesencia.app.data.remote.SanaesenciaApi
@@ -142,6 +143,10 @@ class CatalogRepository(
 
     suspend fun saveProfesional(profesional: ProfesionalResponse) {
         db.profesionales().upsertAll(listOf(profesional.toEntity()))
+    }
+
+    suspend fun saveProducto(producto: ProductoResponse) {
+        db.productos().upsertAll(listOf(producto.toEntity()))
     }
 
     /**

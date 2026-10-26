@@ -5,6 +5,8 @@ package cl.sanaesencia.app.ui.admin
 import android.util.Log
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.WindowInsets
@@ -31,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
@@ -43,6 +46,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Switch
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -88,6 +92,7 @@ import cl.sanaesencia.app.data.repository.CatalogRepository
 import cl.sanaesencia.app.domain.model.EstadoProfesional
 import cl.sanaesencia.app.domain.usecase.VerificarStockBajoUseCase
 import cl.sanaesencia.app.domain.validacion.ResultadoValidacion
+import cl.sanaesencia.app.domain.validacion.ValidadorEmail
 import cl.sanaesencia.app.domain.validacion.ValidadorIdPositivo
 import cl.sanaesencia.app.domain.validacion.ValidadorNombre
 import cl.sanaesencia.app.domain.validacion.ValidadorPrecio
@@ -104,6 +109,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.Locale
 import cl.sanaesencia.app.data.remote.EstadoProfesionalRequest
+import cl.sanaesencia.app.data.remote.EstadoProductoRequest
 import cl.sanaesencia.app.data.remote.mensajeUsuario
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -126,10 +132,17 @@ data class AdminFormErrors(
     val price: String? = null,
     val stock: String? = null,
     val userId: String? = null,
+    val fullName: String? = null,
+    val email: String? = null,
+    val password: String? = null,
 ) {
     val hasErrors: Boolean
-        get() = listOf(name, title, category, price, stock, userId).any { it != null }
+        get() = listOf(name, title, category, price, stock, userId, fullName, email, password).any { it != null }
 }
+
+data class ProfesionalCreado(val nombre: String, val email: String, val password: String)
+
+const val CONTRASENA_INICIAL = "Demo123!"
 
 enum class AdminSection(val label: String, val icon: ImageVector) {
     INICIO("Inicio", Icons.Default.Home),
@@ -180,7 +193,8 @@ class AdminViewModel(
      */
     private suspend fun fetchAll(): AdminData = coroutineScope {
         val boxes = async { api.adminBoxes() }
-        val products = async { api.productos() }
+        // El admin ve TODOS los productos, incluidos los deshabilitados.
+        val products = async { api.adminProductos() }
         val professionals = async { api.adminProfesionales() }
         val desertion = async { api.adminDesercion() }
         AdminData(
@@ -235,9 +249,18 @@ class AdminViewModel(
         )
     }
 
-    fun validateProfessional(userId: String, title: String, category: String) {
+    fun validateProfessional(
+        fullName: String,
+        email: String,
+        password: String,
+        title: String,
+        category: String,
+    ) {
         _errors.value = _errors.value.copy(
-            userId = if (userId.isBlank()) null else invalid(ValidadorIdPositivo()(userId)),
+            userId = null,
+            fullName = invalid(ValidadorNombre()(fullName)),
+            email = invalid(ValidadorEmail()(email)),
+            password = if (password.isBlank() || password.length >= 6) null else "Mínimo 6 caracteres",
             title = invalid(ValidadorTextoMin3()(title)),
             category = invalid(ValidadorTextoMin3()(category)),
         )
@@ -251,28 +274,28 @@ class AdminViewModel(
 
     /* ------------------------- Profesionales --------------------- */
 
-    fun addProfessional(userIdText: String, title: String, category: String) {
-        validateProfessional(userIdText, title, category)
+    /**
+     * Crea el profesional con nombre y correo. Si la persona no tiene cuenta, el backend la crea
+     * (rol PROFESIONAL) con la contraseña indicada o "Demo123!". No hace falta registrarla antes.
+     */
+    fun addProfessional(
+        fullName: String,
+        email: String,
+        password: String,
+        title: String,
+        category: String,
+    ) {
+        validateProfessional(fullName, email, password, title, category)
         if (_errors.value.hasErrors) return
-
-        val userId = userIdText.toLongOrNull()
-        if (userId == null || userId <= 0) {
-            _errors.value = _errors.value.copy(userId = "Ingresa el ID de una cuenta con rol PROFESIONAL")
-            return
-        }
-
-        val duplicado = datosActuales()?.professionals?.any { it.usuarioId == userId } == true
-        if (duplicado) {
-            message.value = "Esta cuenta ya tiene un perfil profesional. Usa el ID de otra cuenta con rol PROFESIONAL."
-            return
-        }
 
         message.value = null
         viewModelScope.launch {
             runCatching {
                 val nuevo = api.adminCrearProfesional(
                     ProfesionalAdminRequest(
-                        usuarioId = userId,
+                        nombreCompleto = fullName.trim(),
+                        email = email.trim().lowercase(),
+                        password = password.ifBlank { null },
                         titulo = title.trim(),
                         categoriaEspecialidad = category.trim(),
                         descripcionEnfoque = "Atención integrativa",
@@ -281,16 +304,26 @@ class AdminViewModel(
                         estado = EstadoProfesional.DISPONIBLE,
                     ),
                 )
-                catalogRepository?.saveProfesional(nuevo)
+                runCatching { catalogRepository?.saveProfesional(nuevo) }
                 refrescar()
             }.onSuccess {
+                ultimoProfesionalCreado.value = ProfesionalCreado(
+                    nombre = fullName.trim(),
+                    email = email.trim().lowercase(),
+                    password = password.ifBlank { CONTRASENA_INICIAL },
+                )
                 message.value = "Profesional creado"
             }.onFailure {
-                message.value = it.mensajeUsuario(
-                    "No se pudo crear el profesional. Comprueba que el ID exista, tenga rol PROFESIONAL y aún no tenga perfil.",
-                )
+                message.value = it.mensajeUsuario("No se pudo crear el profesional")
             }
         }
+    }
+
+    /** Datos de acceso del último profesional creado, para mostrarlos al admin una vez. */
+    val ultimoProfesionalCreado = MutableStateFlow<ProfesionalCreado?>(null)
+
+    fun cerrarCredenciales() {
+        ultimoProfesionalCreado.value = null
     }
 
     fun cambiarEstadoProfesional(profesional: ProfesionalResponse, estado: EstadoProfesional) {
@@ -319,7 +352,7 @@ class AdminViewModel(
         message.value = null
         viewModelScope.launch {
             runCatching {
-                api.adminCrearProducto(
+                val nuevo = api.adminCrearProducto(
                     ProductoAdminRequest(
                         nombre = name.trim(),
                         descripcion = "Producto administrado",
@@ -329,6 +362,8 @@ class AdminViewModel(
                         etiquetasTerapeuticas = "bienestar",
                     ),
                 )
+                runCatching { catalogRepository?.saveProducto(nuevo) }
+                runCatching { catalogRepository?.refresh() }
                 refrescar()
                 message.value = "Producto creado"
             }.onFailure {
@@ -352,7 +387,7 @@ class AdminViewModel(
         message.value = null
         viewModelScope.launch {
             runCatching {
-                api.adminEditarProducto(
+                val editado = api.adminEditarProducto(
                     product.id,
                     ProductoAdminRequest(
                         nombre = name.trim(),
@@ -361,15 +396,57 @@ class AdminViewModel(
                         stock = stock,
                         imagenUrl = product.imagenUrl,
                         etiquetasTerapeuticas = product.etiquetasTerapeuticas,
-                        estaActivo = product.estaActivo,
+                        // Si estaba deshabilitado por falta de stock y ahora tiene stock, se vuelve a habilitar.
+                        estaActivo = product.estaActivo || (product.stock <= 0 && stock > 0),
                     ),
                 )
+                runCatching { catalogRepository?.saveProducto(editado) }
+                runCatching { catalogRepository?.refresh() }
                 refrescar()
                 message.value = "Producto actualizado"
             }.onFailure {
                 message.value = it.mensajeUsuario("No fue posible actualizar el producto")
             }
         }
+    }
+
+    /** Habilita o deshabilita un producto (se ve o no en la tienda). Sin stock no se puede habilitar. */
+    fun cambiarActivoProducto(product: ProductoResponse, activo: Boolean) {
+        actualizarProductoLocal(product.copy(estaActivo = activo))
+        viewModelScope.launch {
+            runCatching { api.adminActivarProducto(product.id, EstadoProductoRequest(activo)) }
+                .onSuccess {
+                    actualizarProductoLocal(it)
+                    runCatching { catalogRepository?.refresh() }
+                    message.value = if (activo) "Producto habilitado" else "Producto deshabilitado"
+                }
+                .onFailure {
+                    actualizarProductoLocal(product)
+                    message.value = it.mensajeUsuario("No fue posible cambiar el estado del producto")
+                }
+        }
+    }
+
+    fun eliminarProducto(product: ProductoResponse) {
+        viewModelScope.launch {
+            runCatching { api.adminEliminarProducto(product.id) }
+                .onSuccess {
+                    val actual = datosActuales()
+                    if (actual != null) {
+                        state.value = UiState.Exito(actual.copy(products = actual.products.filterNot { it.id == product.id }))
+                    }
+                    runCatching { catalogRepository?.refresh() }
+                    message.value = "Producto eliminado"
+                }
+                .onFailure { message.value = it.mensajeUsuario("No fue posible eliminar el producto") }
+        }
+    }
+
+    private fun actualizarProductoLocal(product: ProductoResponse) {
+        val actual = datosActuales() ?: return
+        state.value = UiState.Exito(
+            actual.copy(products = actual.products.map { if (it.id == product.id) product else it }),
+        )
     }
 
     private fun invalid(result: ResultadoValidacion): String? =
@@ -387,6 +464,7 @@ fun AdminDashboardScreen(
 ) {
     val state by vm.state.collectAsState()
     val message by vm.message.collectAsState()
+    val creado by vm.ultimoProfesionalCreado.collectAsState()
 
     var section by rememberSaveable { mutableStateOf(AdminSection.INICIO) }
     var showProduct by remember { mutableStateOf(false) }
@@ -517,9 +595,31 @@ fun AdminDashboardScreen(
                 showProfessional = false
                 vm.clearFormErrors()
             },
-            onSave = { userId, title, category ->
-                vm.addProfessional(userId, title, category)
+            onSave = { fullName, email, password, title, category ->
+                vm.addProfessional(fullName, email, password, title, category)
             },
+        )
+    }
+
+    // Datos de acceso del profesional recién creado, para que el admin se los entregue.
+    creado?.let { info ->
+        AlertDialog(
+            onDismissRequest = vm::cerrarCredenciales,
+            icon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
+            title = { Text("Profesional creado") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("${info.nombre} ya puede ingresar a la app con:")
+                    Text("Correo: ${info.email}", style = MaterialTheme.typography.titleSmall)
+                    Text("Contraseña: ${info.password}", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Si la persona ya tenía cuenta, conserva su contraseña actual.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = vm::cerrarCredenciales) { Text("Entendido") } },
         )
     }
 }
@@ -849,6 +949,30 @@ private fun TiendaSection(
     onEdit: (ProductoResponse) -> Unit,
 ) {
     val low = products.count { vm.isStockBajo(it.stock) }
+    var productToDelete by remember { mutableStateOf<ProductoResponse?>(null) }
+
+    productToDelete?.let { product ->
+        AlertDialog(
+            onDismissRequest = { productToDelete = null },
+            icon = { Icon(Icons.Default.Delete, contentDescription = null) },
+            title = { Text("¿Eliminar producto?") },
+            text = {
+                Text(
+                    "Se eliminará \"${product.nombre}\" de la tienda. Esta acción no se puede deshacer. " +
+                        "Si solo quieres ocultarlo, usa el interruptor para deshabilitarlo.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        vm.eliminarProducto(product)
+                        productToDelete = null
+                    },
+                ) { Text("Eliminar", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { productToDelete = null }) { Text("Cancelar") } },
+        )
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -875,50 +999,80 @@ private fun TiendaSection(
 
         items(products, key = { "product_${it.id}" }) { product ->
             val isLow = vm.isStockBajo(product.stock)
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+            val sinStock = product.stock <= 0
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (product.estaActivo) {
+                        MaterialTheme.colorScheme.surface
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    },
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            ) {
+                Column(
+                    modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 6.dp),
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            product.nombre,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            "$${formatClp(product.precio)} CLP",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            if (isLow) {
-                                Icon(
-                                    Icons.Default.Warning,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (isLow) "Stock bajo: ${product.stock}"
-                                else "Stock: ${product.stock}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (isLow) {
-                                    MaterialTheme.colorScheme.error
+                                product.nombre,
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color = if (product.estaActivo) {
+                                    MaterialTheme.colorScheme.onSurface
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant
                                 },
                             )
+                            Text(
+                                "$${formatClp(product.precio)} CLP",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
                         }
+                        Switch(
+                            checked = product.estaActivo,
+                            onCheckedChange = { vm.cambiarActivoProducto(product, it) },
+                            enabled = !sinStock || product.estaActivo,
+                        )
                     }
-                    IconButton(onClick = { onEdit(product) }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Default.Edit, contentDescription = "Editar ${product.nombre}")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isLow) {
+                            Icon(
+                                Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.size(4.dp))
+                        }
+                        Text(
+                            text = when {
+                                sinStock -> "Sin stock · deshabilitado"
+                                !product.estaActivo -> "Stock: ${product.stock} · deshabilitado"
+                                isLow -> "Stock bajo: ${product.stock}"
+                                else -> "Stock: ${product.stock} · visible en tienda"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isLow || sinStock) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                        IconButton(onClick = { onEdit(product) }, modifier = Modifier.size(44.dp)) {
+                            Icon(Icons.Default.Edit, contentDescription = "Editar ${product.nombre}")
+                        }
+                        IconButton(onClick = { productToDelete = product }, modifier = Modifier.size(44.dp)) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Eliminar ${product.nombre}",
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        }
                     }
                 }
             }
@@ -1027,14 +1181,18 @@ private fun ProfesionalesSection(
 private fun ProfessionalDialog(
     vm: AdminViewModel,
     onDismiss: () -> Unit,
-    onSave: (String, String, String) -> Unit,
+    onSave: (fullName: String, email: String, password: String, title: String, category: String) -> Unit,
 ) {
-    var userId by remember { mutableStateOf("101") }
+    var fullName by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
     var expanded by remember { mutableStateOf(false) }
 
     val errors by vm.errors.collectAsState()
+
+    fun validar() = vm.validateProfessional(fullName, email, password, title, category)
 
     val specialties = listOf(
         "Med. General & Salud Mental",
@@ -1051,41 +1209,54 @@ private fun ProfessionalDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(
-                onClick = { onSave(userId, title, category) },
-                enabled = title.isNotBlank() &&
-                        category.isNotBlank() &&
-                        (userId.isBlank() || errors.userId == null),
-            ) { Text("Guardar") }
+                onClick = { onSave(fullName, email, password, title, category) },
+                enabled = fullName.isNotBlank() && email.isNotBlank() &&
+                    title.isNotBlank() && category.isNotBlank() && !errors.hasErrors,
+            ) { Text("Crear profesional") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
         title = { Text("Nuevo profesional") },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                CampoFormulario(
-                    label = "ID de usuario",
-                    value = userId,
-                    onValueChange = {
-                        userId = it
-                        vm.validateProfessional(it, title, category)
-                    },
-                    error = errors.userId,
-                    keyboard = KeyboardType.Number,
-                )
                 Text(
-                    "Debe ser una cuenta existente con rol PROFESIONAL y sin perfil profesional creado.",
+                    "No necesita estar registrado: se crea su cuenta automáticamente y podrá ingresar con este correo.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 CampoFormulario(
-                    label = "Título",
+                    label = "Nombre completo",
+                    value = fullName,
+                    onValueChange = { fullName = it; validar() },
+                    error = errors.fullName,
+                )
+                CampoFormulario(
+                    label = "Correo electrónico",
+                    value = email,
+                    onValueChange = { email = it.trim(); validar() },
+                    error = errors.email,
+                    keyboard = KeyboardType.Email,
+                )
+                CampoFormulario(
+                    label = "Contraseña inicial (opcional)",
+                    value = password,
+                    onValueChange = { password = it; validar() },
+                    error = errors.password,
+                    keyboard = KeyboardType.Password,
+                )
+                Text(
+                    "Si la dejas vacía, la contraseña será $CONTRASENA_INICIAL",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                CampoFormulario(
+                    label = "Título (ej. Psicóloga, Nutricionista)",
                     value = title,
-                    onValueChange = {
-                        title = it
-                        vm.validateProfessional(userId, it, category)
-                    },
+                    onValueChange = { title = it; validar() },
                     error = errors.title,
                 )
                 Box(modifier = Modifier.fillMaxWidth()) {
@@ -1119,7 +1290,7 @@ private fun ProfessionalDialog(
                                 onClick = {
                                     category = specialty
                                     expanded = false
-                                    vm.validateProfessional(userId, title, specialty)
+                                    vm.validateProfessional(fullName, email, password, title, specialty)
                                 },
                             )
                         }

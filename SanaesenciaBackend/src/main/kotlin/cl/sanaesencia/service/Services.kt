@@ -202,6 +202,8 @@ class PedidoService(
             require(p.estaActivo) { "El producto no está disponible" }
             require(p.stock >= req.cantidad) { "Stock insuficiente para ${p.nombre}" }
             p.stock -= req.cantidad
+            // Sin stock: el producto se deshabilita solo y deja de aparecer en la tienda.
+            if (p.stock <= 0) p.estaActivo = false
             products.save(p)
             val subtotal = p.precio * req.cantidad
             total += subtotal
@@ -227,6 +229,7 @@ class AdminService(
     private val users: UsuarioRepository,
     private val boxes: BoxRepository,
     private val jwt: JwtService,
+    private val encoder: PasswordEncoder,
 ) {
     /** Lanza 401 si no hay sesión válida y 403 si el usuario no es ADMIN. Siempre se llama ANTES de leer o modificar datos. */
     fun verificarAdmin(authorization: String?) {
@@ -238,11 +241,118 @@ class AdminService(
     fun stockBajo(auth: String?): List<ProductoResponse> { requireAdmin(auth); return products.findAll().filter { it.estaActivo && it.stock <= 3 }.map { it.toResponse() } }
     fun profesionales(auth: String?): List<ProfesionalResponse> { requireAdmin(auth); return professionals.findAll().map { it.toResponse() } }
     fun boxes(auth: String?): List<BoxResponse> { requireAdmin(auth); return boxes.findAllByOrderByNumeroBoxAsc().map { it.toResponse() } }
+    /** Todos los productos (activos e inactivos) para el panel admin. */
+    fun productos(auth: String?): List<ProductoResponse> { requireAdmin(auth); return products.findAll().sortedBy { it.nombre.lowercase() }.map { it.toResponse() } }
+
     @Transactional
-    fun crearProducto(auth: String?, r: ProductoAdminRequest): ProductoResponse { requireAdmin(auth); return products.save(Producto(nombre=r.nombre, descripcion=r.descripcion, precio=r.precio, stock=r.stock, imagenUrl=r.imagenUrl, etiquetasTerapeuticas=r.etiquetasTerapeuticas, estaActivo=r.estaActivo)).toResponse() }
-    fun editarProducto(auth: String?, id: Long, r: ProductoAdminRequest): ProductoResponse { requireAdmin(auth); val p=products.findById(id).orElseThrow{IllegalArgumentException("Producto no encontrado")}; p.nombre=r.nombre;p.descripcion=r.descripcion;p.precio=r.precio;p.stock=r.stock;p.imagenUrl=r.imagenUrl;p.etiquetasTerapeuticas=r.etiquetasTerapeuticas;p.estaActivo=r.estaActivo;return products.save(p).toResponse() }
+    fun crearProducto(auth: String?, r: ProductoAdminRequest): ProductoResponse {
+        requireAdmin(auth)
+        validarProducto(r)
+        return products.save(Producto(nombre=r.nombre.trim(), descripcion=r.descripcion, precio=r.precio, stock=r.stock, imagenUrl=r.imagenUrl, etiquetasTerapeuticas=r.etiquetasTerapeuticas, estaActivo=r.estaActivo && r.stock > 0)).toResponse()
+    }
+
+    @Transactional
+    fun editarProducto(auth: String?, id: Long, r: ProductoAdminRequest): ProductoResponse {
+        requireAdmin(auth)
+        validarProducto(r)
+        val p = products.findById(id).orElseThrow { IllegalArgumentException("Producto no encontrado") }
+        p.nombre = r.nombre.trim(); p.descripcion = r.descripcion; p.precio = r.precio; p.stock = r.stock
+        p.imagenUrl = r.imagenUrl; p.etiquetasTerapeuticas = r.etiquetasTerapeuticas
+        // Un producto sin stock queda deshabilitado automáticamente.
+        p.estaActivo = r.estaActivo && r.stock > 0
+        return products.save(p).toResponse()
+    }
+
+    @Transactional
+    fun activarProducto(auth: String?, id: Long, activo: Boolean): ProductoResponse {
+        requireAdmin(auth)
+        val p = products.findById(id).orElseThrow { IllegalArgumentException("Producto no encontrado") }
+        require(!activo || p.stock > 0) { "No se puede habilitar un producto sin stock. Agrega stock primero." }
+        p.estaActivo = activo
+        return products.save(p).toResponse()
+    }
+
+    @Transactional
+    fun eliminarProducto(auth: String?, id: Long): Map<String, String> {
+        requireAdmin(auth)
+        val p = products.findById(id).orElseThrow { IllegalArgumentException("Producto no encontrado") }
+        // El historial de pedidos guarda nombre y precio, así que eliminar el producto no lo afecta.
+        products.delete(p)
+        return mapOf("mensaje" to "Producto eliminado")
+    }
+
+    private fun validarProducto(r: ProductoAdminRequest) {
+        require(r.nombre.isNotBlank()) { "El nombre del producto es obligatorio" }
+        require(r.precio > 0) { "El precio debe ser mayor a 0" }
+        require(r.stock >= 0) { "El stock no puede ser negativo" }
+    }
+
     fun toggleBox(auth: String?, id: Long, r: EstadoBoxRequest): BoxResponse { requireAdmin(auth); val b=boxes.findById(id).orElseThrow{IllegalArgumentException("Box no encontrado")};b.estaHabilitado=r.habilitado;return boxes.save(b).toResponse() }
-    fun crearProfesional(auth: String?, r: ProfesionalAdminRequest): ProfesionalResponse { requireAdmin(auth); val u=users.findById(r.usuarioId).orElseThrow{IllegalArgumentException("Usuario no encontrado")};require(u.rol==RolUsuario.PROFESIONAL){"El usuario debe tener rol PROFESIONAL"};require(professionals.findByUsuarioId(u.id)==null){"El usuario ya tiene perfil profesional"};return professionals.save(Profesional(usuarioId=u.id,titulo=r.titulo,categoriaEspecialidad=r.categoriaEspecialidad,descripcionEnfoque=r.descripcionEnfoque,certificaciones=r.certificaciones,anosExperiencia=r.anosExperiencia,estado=r.estado,fotoUrl=r.fotoUrl)).toResponse() }
+
+    /**
+     * Crea un profesional sin exigir que la persona esté registrada:
+     * - Si viene usuarioId, usa esa cuenta.
+     * - Si viene un correo que ya existe, usa esa cuenta y le asigna el rol PROFESIONAL.
+     * - Si el correo no existe, crea la cuenta con contraseña inicial (password o "Demo123!").
+     */
+    @Transactional
+    fun crearProfesional(auth: String?, r: ProfesionalAdminRequest): ProfesionalResponse {
+        requireAdmin(auth)
+        require(r.titulo.isNotBlank()) { "El título es obligatorio" }
+        require(r.categoriaEspecialidad.isNotBlank()) { "La especialidad es obligatoria" }
+
+        val usuario: Usuario = when {
+            r.usuarioId != null && r.usuarioId > 0 ->
+                users.findById(r.usuarioId).orElseThrow { IllegalArgumentException("No existe un usuario con ID ${r.usuarioId}") }
+            !r.email.isNullOrBlank() -> {
+                val email = r.email.trim().lowercase()
+                require(Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$").matches(email)) { "El correo no es válido" }
+                users.findByEmail(email) ?: run {
+                    val nombre = r.nombreCompleto?.trim().orEmpty()
+                    require(nombre.isNotBlank()) { "El nombre completo es obligatorio" }
+                    val password = r.password?.takeIf { it.length >= 6 } ?: CONTRASENA_INICIAL
+                    val rut = r.rut?.trim()?.takeIf { it.isNotBlank() } ?: "PRO-${System.currentTimeMillis()}"
+                    users.save(
+                        Usuario(
+                            rut = rut,
+                            nombreCompleto = nombre,
+                            email = email,
+                            telefono = r.telefono?.trim().orEmpty(),
+                            rol = RolUsuario.PROFESIONAL,
+                            passwordHash = encoder.encode(password),
+                            consentimientoSalud = true,
+                        )
+                    )
+                }
+            }
+            else -> throw IllegalArgumentException("Ingresa el nombre y el correo del profesional")
+        }
+
+        require(usuario.rol != RolUsuario.ADMIN) { "Una cuenta de administrador no puede ser profesional" }
+        require(professionals.findByUsuarioId(usuario.id) == null) { "Esta persona ya tiene un perfil profesional" }
+        if (usuario.rol != RolUsuario.PROFESIONAL) {
+            usuario.rol = RolUsuario.PROFESIONAL
+            users.save(usuario)
+        }
+
+        return professionals.save(
+            Profesional(
+                usuarioId = usuario.id,
+                titulo = r.titulo.trim(),
+                categoriaEspecialidad = r.categoriaEspecialidad.trim(),
+                descripcionEnfoque = r.descripcionEnfoque,
+                certificaciones = r.certificaciones,
+                anosExperiencia = r.anosExperiencia,
+                estado = r.estado,
+                fotoUrl = r.fotoUrl,
+            )
+        ).toResponse()
+    }
+
+    companion object {
+        const val CONTRASENA_INICIAL = "Demo123!"
+    }
+
     fun estadoProfesional(auth: String?, id: Long, estado: String): ProfesionalResponse { requireAdmin(auth); val p=professionals.findById(id).orElseThrow{IllegalArgumentException("Profesional no encontrado")};p.estado=runCatching{EstadoProfesional.valueOf(estado)}.getOrElse{throw IllegalArgumentException("Estado profesional inválido")};return professionals.save(p).toResponse() }
 }
 
