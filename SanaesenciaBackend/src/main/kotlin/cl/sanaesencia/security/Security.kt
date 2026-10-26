@@ -134,7 +134,9 @@ class SecurityConfig {
     }
 
     // AntPathRequestMatcher evita el conflicto entre DispatcherServlet y la consola H2.
-    private fun ant(method: HttpMethod?, pattern: String) = AntPathRequestMatcher.antMatcher(method, pattern)
+    // Sin método = cualquier verbo HTTP (antMatcher(method, ...) no acepta null).
+    private fun ant(method: HttpMethod?, pattern: String): AntPathRequestMatcher =
+        if (method == null) AntPathRequestMatcher.antMatcher(pattern) else AntPathRequestMatcher.antMatcher(method, pattern)
 
     private fun escribirError(response: HttpServletResponse, status: Int, mensaje: String) {
         response.status = status
