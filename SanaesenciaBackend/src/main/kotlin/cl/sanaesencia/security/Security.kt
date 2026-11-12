@@ -7,6 +7,7 @@ import io.jsonwebtoken.security.Keys
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -20,18 +21,37 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher
+import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
 import org.springframework.web.filter.OncePerRequestFilter
 import java.nio.charset.StandardCharsets
 import java.util.Date
+import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.SecretKey
 
 @Service
 class JwtService(
-    @Value("\${app.jwt.secret}") secret: String,
+    @Value("\${app.jwt.secret:}") secret: String,
     @Value("\${app.jwt.expiration-ms}") private val expiration: Long,
 ) {
-    private val key: SecretKey = Keys.hmacShaKeyFor(secret.toByteArray(StandardCharsets.UTF_8))
+    private val log = LoggerFactory.getLogger(JwtService::class.java)
+    private val key: SecretKey = crearClave(secret)
+
+    /**
+     * La clave de firma nunca vive en el repositorio: llega por la variable de entorno JWT_SECRET.
+     * Sin ella se genera una clave aleatoria en cada arranque (válida para desarrollo y demos:
+     * las sesiones se cierran al reiniciar el backend).
+     */
+    private fun crearClave(secret: String): SecretKey {
+        if (secret.isBlank()) {
+            log.warn("JWT_SECRET no está definido: se usa una clave temporal y las sesiones se invalidan al reiniciar. Define JWT_SECRET en producción.")
+            return Jwts.SIG.HS256.key().build()
+        }
+        val bytes = secret.toByteArray(StandardCharsets.UTF_8)
+        require(bytes.size >= 32) { "JWT_SECRET debe tener al menos 32 caracteres" }
+        require(!secret.startsWith("CHANGE_THIS")) { "JWT_SECRET usa el valor de ejemplo público. Genera uno propio." }
+        return Keys.hmacShaKeyFor(bytes)
+    }
 
     fun generate(userId: Long, email: String, rol: RolUsuario): String =
         Jwts.builder()
@@ -59,6 +79,53 @@ class JwtService(
 
 /** 401: no hay token, es inválido o expiró. La app debe volver al login. */
 class NoAutenticadoException(message: String) : RuntimeException(message)
+
+/** 429: demasiados intentos fallidos de inicio de sesión. */
+class DemasiadosIntentosException(message: String) : RuntimeException(message)
+
+/**
+ * Frena los ataques de fuerza bruta contra el login: tras varios intentos fallidos seguidos
+ * para la misma cuenta desde la misma IP, bloquea nuevos intentos durante unos minutos.
+ * Vive en memoria, suficiente para una sola instancia del backend.
+ */
+@Component
+class LoginAttemptLimiter(
+    @Value("\${app.login.max-intentos:5}") private val maxIntentos: Int,
+    @Value("\${app.login.bloqueo-minutos:15}") private val bloqueoMinutos: Long,
+) {
+    private data class Registro(val fallos: Int, val inicio: Long)
+
+    private val intentos = ConcurrentHashMap<String, Registro>()
+    private val ventanaMs: Long get() = bloqueoMinutos * 60_000
+
+    fun clave(email: String, ip: String): String = email.take(200) + "|" + ip
+
+    /** Lanza 429 si la cuenta está bloqueada temporalmente. */
+    fun verificar(clave: String) {
+        val registro = intentos[clave] ?: return
+        if (System.currentTimeMillis() - registro.inicio >= ventanaMs) {
+            intentos.remove(clave)
+            return
+        }
+        if (registro.fallos >= maxIntentos) {
+            throw DemasiadosIntentosException("Demasiados intentos fallidos. Intenta nuevamente en $bloqueoMinutos minutos.")
+        }
+    }
+
+    fun registrarFallo(clave: String) {
+        val ahora = System.currentTimeMillis()
+        // acota la memoria si llegan intentos para muchísimas cuentas distintas
+        if (intentos.size > 10_000) intentos.entries.removeIf { ahora - it.value.inicio >= ventanaMs }
+        intentos.compute(clave) { _, registro ->
+            if (registro == null || ahora - registro.inicio >= ventanaMs) Registro(1, ahora)
+            else registro.copy(fallos = registro.fallos + 1)
+        }
+    }
+
+    fun registrarExito(clave: String) {
+        intentos.remove(clave)
+    }
+}
 
 /** 403: hay sesión, pero el rol no tiene permiso para esta acción. */
 class SinPermisoException(message: String = "No tienes permisos para realizar esta acción") : RuntimeException(message)
@@ -91,7 +158,10 @@ class JwtAuthFilter(
 }
 
 @Configuration
-class SecurityConfig {
+class SecurityConfig(
+    // La consola H2 solo se abre si se habilita explícitamente (H2_CONSOLE_ENABLED=true) en desarrollo.
+    @Value("\${spring.h2.console.enabled:false}") private val consolaH2Habilitada: Boolean,
+) {
     @Bean fun passwordEncoder() = BCryptPasswordEncoder()
 
     /**
@@ -103,7 +173,10 @@ class SecurityConfig {
     fun filterChain(http: HttpSecurity, jwt: JwtService, users: UsuarioRepository): SecurityFilterChain {
         http.csrf { it.disable() }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
-            .headers { headers -> headers.frameOptions { it.sameOrigin() } }
+            .headers { headers ->
+                // La consola H2 usa iframes; fuera de ese caso la API no se puede incrustar en otra página.
+                headers.frameOptions { if (consolaH2Habilitada) it.sameOrigin() else it.deny() }
+            }
             .authorizeHttpRequests {
                 it.requestMatchers(ant(HttpMethod.POST, "/auth/login")).permitAll()
                     .requestMatchers(
@@ -113,8 +186,9 @@ class SecurityConfig {
                         ant(HttpMethod.GET, "/promociones/**"),
                         ant(HttpMethod.GET, "/citas/disponibilidad"),
                     ).permitAll()
-                    .requestMatchers(ant(null, "/error"), ant(null, "/h2-console/**")).permitAll()
-                    .requestMatchers(ant(null, "/admin/**")).hasRole("ADMIN")
+                    .requestMatchers(ant(null, "/error")).permitAll()
+                if (consolaH2Habilitada) it.requestMatchers(ant(null, "/h2-console/**")).permitAll()
+                it.requestMatchers(ant(null, "/admin/**")).hasRole("ADMIN")
                     .requestMatchers(ant(HttpMethod.POST, "/promociones/**")).hasRole("ADMIN")
                     .requestMatchers(ant(HttpMethod.POST, "/pedidos/**")).hasRole("PACIENTE")
                     .requestMatchers(ant(HttpMethod.POST, "/citas")).hasRole("PACIENTE")

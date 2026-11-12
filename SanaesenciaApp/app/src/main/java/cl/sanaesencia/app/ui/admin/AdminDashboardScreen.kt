@@ -159,8 +159,6 @@ data class AdminFormErrors(
 
 data class ProfesionalCreado(val nombre: String, val email: String, val password: String)
 
-const val CONTRASENA_INICIAL = "Demo123!"
-
 enum class AdminSection(val label: String, val icon: ImageVector) {
     INICIO("Inicio", Icons.Default.Home),
     BOXES("Boxes", Icons.Default.MeetingRoom),
@@ -278,7 +276,7 @@ class AdminViewModel(
             userId = null,
             fullName = invalid(ValidadorNombre()(fullName)),
             email = invalid(ValidadorEmail()(email)),
-            password = if (password.isBlank() || password.length >= 6) null else "Mínimo 6 caracteres",
+            password = if (password.length >= 8) null else "Mínimo 8 caracteres",
             title = invalid(ValidadorTextoMin3()(title)),
             category = invalid(ValidadorTextoMin3()(category)),
         )
@@ -294,7 +292,7 @@ class AdminViewModel(
 
     /**
      * Crea el profesional con nombre y correo. Si la persona no tiene cuenta, el backend la crea
-     * (rol PROFESIONAL) con la contraseña indicada o "Demo123!". No hace falta registrarla antes.
+     * (rol PROFESIONAL) con la contraseña inicial indicada. No hace falta registrarla antes.
      */
     fun addProfessional(
         fullName: String,
@@ -313,7 +311,7 @@ class AdminViewModel(
                     ProfesionalAdminRequest(
                         nombreCompleto = fullName.trim(),
                         email = email.trim().lowercase(),
-                        password = password.ifBlank { null },
+                        password = password,
                         titulo = title.trim(),
                         categoriaEspecialidad = category.trim(),
                         descripcionEnfoque = "Atención integrativa",
@@ -328,7 +326,7 @@ class AdminViewModel(
                 ultimoProfesionalCreado.value = ProfesionalCreado(
                     nombre = fullName.trim(),
                     email = email.trim().lowercase(),
-                    password = password.ifBlank { CONTRASENA_INICIAL },
+                    password = password,
                 )
                 message.value = "Profesional creado"
             }.onFailure {
@@ -1745,14 +1743,14 @@ private fun ProfessionalDialog(
                     keyboard = KeyboardType.Email,
                 )
                 CampoFormulario(
-                    label = "Contraseña inicial (opcional)",
+                    label = "Contraseña inicial",
                     value = password,
                     onValueChange = { password = it; validar() },
                     error = errors.password,
                     keyboard = KeyboardType.Password,
                 )
                 Text(
-                    "Si la dejas vacía, la contraseña será $CONTRASENA_INICIAL",
+                    "Mínimo 8 caracteres. Entrégasela al profesional por un canal seguro.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -1,3 +1,6 @@
+# MySQL para desarrollo local.
+# Las contraseñas se pueden cambiar con un archivo .env (ver .env.example); los valores por
+# defecto solo son aceptables porque el puerto se publica únicamente en este equipo (127.0.0.1).
 services:
   mysql:
     image: mysql:8.4
@@ -5,15 +8,16 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: sanaesencia
-      MYSQL_USER: sanaesencia
-      MYSQL_PASSWORD: sanaesencia
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: ${DB_USER:-sanaesencia}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-sanaesencia}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
     ports:
-      - "3307:3306"
+      # Solo accesible desde este equipo, no desde la red
+      - "127.0.0.1:3307:3306"
     volumes:
       - sanaesencia_mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p\"$$MYSQL_ROOT_PASSWORD\""]
       interval: 10s
       timeout: 5s
       retries: 10

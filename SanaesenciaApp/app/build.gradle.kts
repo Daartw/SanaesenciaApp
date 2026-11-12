@@ -14,6 +14,11 @@ if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
 
+// URL del backend. Por defecto apunta al PC anfitrión visto desde el emulador.
+// Para otro destino: ./gradlew assembleDebug -PAPI_BASE_URL=https://api.midominio.cl/api/
+// (la versión de publicación solo acepta HTTPS: usesCleartextTraffic está desactivado).
+val apiBaseUrl: String = (project.findProperty("API_BASE_URL") as String?) ?: "http://10.0.2.2:8080/api/"
+
 android {
     namespace = "cl.sanaesencia.app"
     compileSdk = 35
@@ -28,7 +33,7 @@ android {
         buildConfigField(
             "String",
             "API_BASE_URL",
-            "\"http://10.0.2.2:8080/api/\""
+            "\"$apiBaseUrl\""
         )
     }
 
