@@ -29,7 +29,7 @@ jobs:
       # Verifica además que gradle-wrapper.jar sea el oficial
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew test --no-daemon
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: backend-test-report
