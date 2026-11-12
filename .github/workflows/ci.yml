@@ -27,7 +27,7 @@ jobs:
           distribution: temurin
           java-version: 21
       # Verifica además que gradle-wrapper.jar sea el oficial
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - run: ./gradlew test --no-daemon
       - uses: actions/upload-artifact@v7
         if: failure()
@@ -48,5 +48,5 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - run: ./gradlew testDebugUnitTest assembleDebug --no-daemon
