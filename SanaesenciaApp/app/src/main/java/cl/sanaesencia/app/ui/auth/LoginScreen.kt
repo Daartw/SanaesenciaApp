@@ -51,6 +51,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cl.sanaesencia.app.BuildConfig
 import cl.sanaesencia.app.data.remote.LoginResponse
 import cl.sanaesencia.app.presentation.LoginViewModel
 import cl.sanaesencia.app.presentation.UiState
@@ -216,8 +217,9 @@ fun LoginScreen(
                         )
                     }
 
-                    // DEMO ACCOUNT QUICK CHIPS
-                    Column(
+                    // DEMO ACCOUNT QUICK CHIPS: solo en compilaciones de depuración.
+                    // La versión de publicación no muestra ni incluye accesos con credenciales de prueba.
+                    if (BuildConfig.DEBUG) Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 8.dp),

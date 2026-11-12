@@ -1,5 +1,7 @@
 server:
-  address: 0.0.0.0
+  # 0.0.0.0 permite conectar un teléfono físico de la misma red. Para usar solo el emulador
+  # o el propio PC, define SERVER_ADDRESS=127.0.0.1
+  address: ${SERVER_ADDRESS:0.0.0.0}
   port: 8080
   servlet:
     context-path: /api
@@ -15,11 +17,22 @@ spring:
     open-in-view: false
   h2:
     console:
-      enabled: true
+      # La consola H2 da acceso completo a la base de datos: apagada por defecto.
+      enabled: ${H2_CONSOLE_ENABLED:false}
 app:
   jwt:
-    secret: "CHANGE_THIS_SECRET_BEFORE_PRODUCTION_12345678901234567890"
-    expiration-ms: 86400000
+    # Clave de firma de los tokens. Nunca se guarda en el repositorio: se entrega con la variable
+    # JWT_SECRET (mínimo 32 caracteres). Vacía = clave aleatoria en cada arranque (desarrollo).
+    secret: ${JWT_SECRET:}
+    # Duración de la sesión: 8 horas
+    expiration-ms: ${JWT_EXPIRATION_MS:28800000}
+  login:
+    # Intentos fallidos permitidos por cuenta e IP antes de bloquear el login temporalmente
+    max-intentos: 5
+    bloqueo-minutos: 15
+  demo:
+    # Crea las cuentas de demostración (contraseñas públicas). En producción: APP_DEMO_SEED=false
+    seed: ${APP_DEMO_SEED:true}
   desercion:
     dias-inactividad: 21
   # RF-14: credenciales oficiales de MEDIlink (vacías hasta que el centro las entregue).

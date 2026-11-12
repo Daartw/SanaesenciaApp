@@ -454,7 +454,7 @@ data class MedilinkSyncResponse(
 
 /**
  * Para crear un profesional basta con nombre + correo: si la cuenta no existe,
- * el backend la crea con la contraseña indicada (o "Demo123!").
+ * el backend la crea con la contraseña inicial indicada (obligatoria).
  */
 data class ProfesionalAdminRequest(
     val usuarioId: Long? = null,
