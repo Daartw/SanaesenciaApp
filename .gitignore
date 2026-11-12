@@ -24,3 +24,11 @@ local.properties
 # OS
 .DS_Store
 Thumbs.db
+
+# Secretos y configuración local
+.env
+*.jks
+*.keystore
+*.pem
+*.key
+google-services.json

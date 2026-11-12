@@ -52,6 +52,8 @@ object RetrofitClient {
     }
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
+        // El token de sesión nunca se escribe en el log, ni siquiera en compilaciones de depuración.
+        redactHeader("Authorization")
         level = if (BuildConfig.DEBUG) {
             HttpLoggingInterceptor.Level.BODY
         } else {

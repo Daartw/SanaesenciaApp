@@ -1,6 +1,9 @@
 # Sanaesencia DSY1105 — Full Stack Kotlin
 
-Proyecto académico full-stack para el Centro Integrativo Sanaesencia.
+[![CI](https://github.com/Daartw/SanaesenciaApp/actions/workflows/ci.yml/badge.svg)](https://github.com/Daartw/SanaesenciaApp/actions/workflows/ci.yml)
+
+Proyecto académico full-stack para el Centro Integrativo Sanaesencia: app Android nativa para pacientes,
+profesionales y administración (agenda de citas, tienda, boxes y seguimiento), con backend propio.
 
 ## Componentes
 - `SanaesenciaApp`: Android nativo, 100 % Kotlin, Jetpack Compose, Material 3, MVVM + Clean Architecture, Room, Retrofit, DataStore.
@@ -40,7 +43,7 @@ Proyecto académico full-stack para el Centro Integrativo Sanaesencia.
 - Stock bajo cuando `stock <= 3`.
 - Deserción como regla configurable, inicialmente 21 días sin sesión completada.
 - Roles PACIENTE / PROFESIONAL / ADMIN.
-- JWT preparado.
+- Autenticación con JWT y control de acceso por rol.
 - MEDIlink desacoplado y sin credenciales inventadas.
 
 ## Cobertura de requerimientos (Entrega 2)
@@ -70,9 +73,13 @@ Proyecto académico full-stack para el Centro Integrativo Sanaesencia.
 - Al cerrar sesión se borran el token, el carrito y las citas guardadas en el teléfono, así la siguiente cuenta no ve datos de la anterior.
 
 ## Demo
+Cuentas de demostración que el backend crea al arrancar con la base vacía:
 - `paciente@sanaesencia.demo` / `Demo123!`
 - `profesional@sanaesencia.demo` / `Demo123!`
 - `admin@sanaesencia.demo` / `Demo123!`
+
+Estas contraseñas son públicas: sirven solo para desarrollo. Con `APP_DEMO_SEED=false` no se crean.
+Los botones de acceso rápido del login aparecen únicamente en la compilación de depuración.
 
 ## Backend
 Necesita un JDK 17 o más nuevo para arrancar Gradle; el JDK 21 del proyecto se descarga solo si no está.
@@ -92,10 +99,32 @@ cd SanaesenciaBackend
 ./gradlew bootRun --args='--spring.profiles.active=mysql'
 ```
 
+Pruebas (incluyen autenticación y control de acceso):
+```bash
+cd SanaesenciaBackend
+./gradlew test
+```
+
+### Variables de entorno del backend
+| Variable | Descripción |
+|---|---|
+| `JWT_SECRET` | Clave de firma de los tokens (32+ caracteres). Si falta, se genera una temporal en cada arranque: sirve para desarrollo, pero las sesiones se cierran al reiniciar |
+| `JWT_EXPIRATION_MS` | Duración de la sesión (por defecto 8 horas) |
+| `APP_DEMO_SEED` | `false` para no crear las cuentas de demostración |
+| `H2_CONSOLE_ENABLED` | `true` abre la consola H2 en `/api/h2-console` (solo desarrollo) |
+| `SERVER_ADDRESS` | Interfaz de red del backend (por defecto `0.0.0.0`) |
+| `DB_URL`, `DB_USER`, `DB_PASSWORD` | Conexión del perfil `mysql` |
+| `MEDILINK_BASE_URL`, `MEDILINK_CITAS_PATH`, `MEDILINK_API_KEY` | Integración MEDIlink |
+
+Ver `.env.example`.
+
 ## Android
 Abrir `SanaesenciaApp` en Android Studio.
 El emulador Android usa `http://10.0.2.2:8080/api/` (el backend tiene que estar corriendo en el mismo PC).
-Para un celular físico, cambiar `API_BASE_URL` en `app/build.gradle.kts` por la IP local del PC (ej. `http://192.168.1.20:8080/api/`).
+Para un celular físico, indicar la IP local del PC al compilar, sin editar archivos:
+```bash
+./gradlew installDebug -PAPI_BASE_URL=http://192.168.1.20:8080/api/
+```
 
 ## Firebase (RF-13 notificaciones)
 - Sin configurar nada, la app ya muestra **recordatorios locales**: aviso 24 h antes de cada cita, alerta de inactividad (21 días sin sesión) y promociones nuevas (WorkManager, cada 6 horas).
@@ -106,8 +135,17 @@ Para un celular físico, cambiar `API_BASE_URL` en `app/build.gradle.kts` por la
 - El admin tiene el botón **Sincronizar** en su inicio (`POST /api/admin/medilink/sincronizar`).
 - No se inventan endpoints ni credenciales: se configuran con las variables `MEDILINK_BASE_URL`, `MEDILINK_CITAS_PATH` y `MEDILINK_API_KEY`. Mientras falten, la sincronización responde "MEDIlink sin configurar" e indica cuántas citas quedan listas para enviar.
 
+## Seguridad
+- El secreto JWT no está en el repositorio: se entrega con `JWT_SECRET`.
+- El login se bloquea 15 minutos tras 5 intentos fallidos para la misma cuenta desde la misma IP.
+- Al crear un profesional, el administrador define su contraseña inicial (mínimo 8 caracteres); no hay contraseña por defecto.
+- La consola H2 está apagada por defecto y MySQL de desarrollo solo escucha en `127.0.0.1`.
+- La versión de publicación de la app no admite HTTP sin cifrar ni respaldo de datos.
+
+Más detalle, y la lista de pendientes antes de un despliegue real, en [SECURITY.md](SECURITY.md).
+
 ## Release
 Configurar un keystore propio desde Android Studio. Nunca subir keystore, passwords, secretos JWT o `google-services.json` a GitHub.
 
 ## Autor
-DAAR — Proyecto académico DSY1105, Centro Integrativo Sanaesencia.
+Daniel Araya Rebolledo ([@Daartw](https://github.com/Daartw)) — Proyecto académico DSY1105, Centro Integrativo Sanaesencia.
