@@ -83,7 +83,7 @@ dependencies {
 
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     // RF-13: notificaciones (FCM + recordatorios programados)
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
