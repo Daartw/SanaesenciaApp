@@ -5,6 +5,7 @@ import cl.sanaesencia.domain.*
 import cl.sanaesencia.integration.MedilinkApi
 import cl.sanaesencia.repository.*
 import cl.sanaesencia.security.JwtService
+import cl.sanaesencia.security.LoginAttemptLimiter
 import cl.sanaesencia.security.NoAutenticadoException
 import cl.sanaesencia.security.SinPermisoException
 import org.springframework.beans.factory.annotation.Value
@@ -61,10 +62,24 @@ class AuthService(
     private val users: UsuarioRepository,
     private val encoder: PasswordEncoder,
     private val jwt: JwtService,
+    private val limiter: LoginAttemptLimiter,
 ) {
-    fun login(r: LoginRequest): LoginResponse {
-        val u = users.findByEmail(r.email.trim().lowercase()) ?: throw IllegalArgumentException("Credenciales inválidas")
-        require(encoder.matches(r.password, u.passwordHash)) { "Credenciales inválidas" }
+    // Hash de relleno: si el correo no existe igual se compara una contraseña, para que el tiempo
+    // de respuesta no revele qué correos están registrados.
+    private val hashSenuelo: String = encoder.encode("sin-cuenta")
+
+    fun login(r: LoginRequest, ip: String = "?"): LoginResponse {
+        val email = r.email.trim().lowercase()
+        val clave = limiter.clave(email, ip)
+        limiter.verificar(clave)
+        val u = users.findByEmail(email)
+        // BCrypt solo considera los primeros 72 bytes: contraseñas más largas se rechazan.
+        val coincide = r.password.length <= 72 && encoder.matches(r.password, u?.passwordHash ?: hashSenuelo)
+        if (u == null || !coincide) {
+            limiter.registrarFallo(clave)
+            throw IllegalArgumentException("Credenciales inválidas")
+        }
+        limiter.registrarExito(clave)
         if (!u.estaActivo) throw SinPermisoException("Tu cuenta está deshabilitada. Contacta a la administración del centro.")
         return LoginResponse(jwt.generate(u.id, u.email, u.rol), u.id, u.nombreCompleto, u.rol)
     }
@@ -75,7 +90,7 @@ class AuthService(
     @Transactional
     fun registrarTokenPush(authorization: String?, r: TokenPushRequest): Map<String, String> {
         val u = users.findById(jwt.userIdFromBearer(authorization)).orElseThrow { NoAutenticadoException("Tu sesión ya no es válida. Inicia sesión nuevamente") }
-        require(r.token.isNotBlank()) { "Token inválido" }
+        require(r.token.isNotBlank() && r.token.length <= 500) { "Token inválido" }
         u.pushToken = r.token.trim()
         users.save(u)
         return mapOf("mensaje" to "Notificaciones activadas")
@@ -88,6 +103,7 @@ class AuthService(
         require(r.nombreCompleto.isNotBlank()) { "El nombre es obligatorio" }
         require(r.telefono.isNotBlank()) { "El teléfono es obligatorio" }
         require(r.consentimientoSalud) { "Debes aceptar el tratamiento de datos para guardar el perfil" }
+        require(r.rut.trim().length <= 12 && r.nombreCompleto.trim().length <= 120 && r.telefono.trim().length <= 20) { "Algún dato del perfil es demasiado largo" }
         u.rut = r.rut.trim()
         u.nombreCompleto = r.nombreCompleto.trim()
         u.telefono = r.telefono.trim()
@@ -251,6 +267,7 @@ class CitaService(
             val p = profesionales.findByUsuarioId(actor.id) ?: throw SinPermisoException("Perfil profesional no encontrado")
             if (c.profesionalId != p.id) throw SinPermisoException("No puedes modificar esta cita")
         } else if (actor.rol != RolUsuario.ADMIN) throw SinPermisoException()
+        require((request.notasAtencion?.length ?: 0) <= 2000) { "Las notas de atención admiten hasta 2000 caracteres" }
         c.estado = request.estado
         c.notasAtencion = request.notasAtencion
         return citas.save(c).toResponse()
@@ -395,7 +412,8 @@ class AdminService(
      * Crea un profesional sin exigir que la persona esté registrada:
      * - Si viene usuarioId, usa esa cuenta.
      * - Si viene un correo que ya existe, usa esa cuenta y le asigna el rol PROFESIONAL.
-     * - Si el correo no existe, crea la cuenta con contraseña inicial (password o "Demo123!").
+     * - Si el correo no existe, crea la cuenta con la contraseña inicial indicada por el administrador
+     *   (obligatoria, 8 a 72 caracteres). No existe una contraseña por defecto.
      */
     @Transactional
     fun crearProfesional(auth: String?, r: ProfesionalAdminRequest): ProfesionalResponse {
@@ -412,7 +430,8 @@ class AdminService(
                 users.findByEmail(email) ?: run {
                     val nombre = r.nombreCompleto?.trim().orEmpty()
                     require(nombre.isNotBlank()) { "El nombre completo es obligatorio" }
-                    val password = r.password?.takeIf { it.length >= 6 } ?: CONTRASENA_INICIAL
+                    val password = r.password?.takeIf { it.length in 8..72 }
+                        ?: throw IllegalArgumentException("La contraseña inicial es obligatoria (8 a 72 caracteres)")
                     val rut = r.rut?.trim()?.takeIf { it.isNotBlank() } ?: "PRO-${System.currentTimeMillis()}"
                     users.save(
                         Usuario(
@@ -449,10 +468,6 @@ class AdminService(
                 fotoUrl = r.fotoUrl,
             )
         ).toResponse(usuario)
-    }
-
-    companion object {
-        const val CONTRASENA_INICIAL = "Demo123!"
     }
 
     fun estadoProfesional(auth: String?, id: Long, estado: String): ProfesionalResponse { requireAdmin(auth); val p=professionals.findById(id).orElseThrow{IllegalArgumentException("Profesional no encontrado")};p.estado=runCatching{EstadoProfesional.valueOf(estado)}.getOrElse{throw IllegalArgumentException("Estado profesional inválido")};return professionals.save(p).toResponse(users.findById(p.usuarioId).orElse(null)) }

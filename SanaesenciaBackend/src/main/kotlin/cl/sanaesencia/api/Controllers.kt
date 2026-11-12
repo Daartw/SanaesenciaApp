@@ -2,15 +2,18 @@ package cl.sanaesencia.api
 
 import cl.sanaesencia.repository.*
 import cl.sanaesencia.service.*
+import cl.sanaesencia.security.DemasiadosIntentosException
 import cl.sanaesencia.security.NoAutenticadoException
 import cl.sanaesencia.security.SinPermisoException
+import jakarta.servlet.http.HttpServletRequest
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping("/auth")
 class AuthController(private val service: AuthService) {
-    @PostMapping("/login") fun login(@RequestBody r: LoginRequest) = service.login(r)
+    @PostMapping("/login") fun login(@RequestBody r: LoginRequest, request: HttpServletRequest) = service.login(r, request.remoteAddr ?: "?")
     @GetMapping("/perfil") fun perfil(@RequestHeader("Authorization", required = false) auth: String?) = service.perfil(auth)
     @PutMapping("/push-token") fun registrarTokenPush(@RequestHeader("Authorization", required = false) auth: String?, @RequestBody r: TokenPushRequest) = service.registrarTokenPush(auth, r)
     @PutMapping("/perfil") fun actualizarPerfil(@RequestHeader("Authorization", required = false) auth: String?, @RequestBody r: ActualizarPerfilRequest) = service.actualizarPerfil(auth, r)
@@ -41,6 +44,8 @@ class PromocionController(private val repo: PromocionRepository, private val adm
     @GetMapping fun all() = repo.findAll()
     @PostMapping fun create(@RequestHeader("Authorization", required = false) auth: String?, @RequestBody p: cl.sanaesencia.domain.Promocion): cl.sanaesencia.domain.Promocion {
         admin.verificarAdmin(auth)
+        // Siempre crea una promoción nueva: un id enviado por el cliente no puede sobrescribir otra existente.
+        p.id = 0
         return repo.save(p)
     }
 }
@@ -105,4 +110,13 @@ class ApiExceptionHandler {
     @ExceptionHandler(SinPermisoException::class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     fun forbidden(ex: SinPermisoException) = mapOf("status" to 403, "mensaje" to (ex.message ?: "No tienes permisos"))
+
+    @ExceptionHandler(DemasiadosIntentosException::class)
+    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+    fun tooManyRequests(ex: DemasiadosIntentosException) = mapOf("status" to 429, "mensaje" to (ex.message ?: "Demasiados intentos"))
+
+    /** Dato duplicado (por ejemplo un RUT o correo ya registrado): 409 sin exponer detalles de la base de datos. */
+    @ExceptionHandler(DataIntegrityViolationException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun conflict(ex: DataIntegrityViolationException) = mapOf("status" to 409, "mensaje" to "El dato ya está registrado o no es válido")
 }

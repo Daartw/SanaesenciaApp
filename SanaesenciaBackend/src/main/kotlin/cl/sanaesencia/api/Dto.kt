@@ -186,7 +186,7 @@ data class MedilinkSyncResponse(
 /**
  * Para crear un profesional hay dos opciones:
  * - Enviar nombreCompleto + email: si la cuenta no existe se crea automáticamente
- *   (rol PROFESIONAL, contraseña inicial = password o "Demo123!").
+ *   (rol PROFESIONAL) con la contraseña inicial enviada en password (obligatoria, 8 a 72 caracteres).
  * - Enviar usuarioId de una cuenta ya existente.
  */
 data class ProfesionalAdminRequest(
