@@ -230,9 +230,12 @@ tasks.register<JacocoReport>("jacocoTestReport") {
 
     sourceDirectories.setFrom(files("src/main/java"))
 
+    // Se apunta a los archivos exactos: recorrer todo `build/` haría que Gradle
+    // detecte dependencias implícitas con otras tareas y falle la validación.
     executionData.setFrom(
-        fileTree(carpetaBuild) {
-            include("**/testDebugUnitTest.exec", "**/jacoco/*.exec", "**/*.ec")
-        }
+        files(
+            File(carpetaBuild, "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec"),
+            File(carpetaBuild, "jacoco/testDebugUnitTest.exec"),
+        ).filter { it.exists() }
     )
 }
