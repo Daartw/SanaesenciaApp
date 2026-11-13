@@ -176,6 +176,25 @@ cd SanaesenciaApp
 ./gradlew jacocoTestReport      # pruebas + informe de cobertura
 ```
 El informe queda en `app/build/reports/jacoco/jacocoTestReport/html/index.html`.
+El CI también lo calcula en cada push y publica el resultado en el resumen del workflow,
+además de subir el informe HTML como artefacto descargable.
+
+**Cobertura actual: 86,62 % de instrucciones y 92,21 % de líneas.**
+
+| Paquete | Instrucciones |
+|---|---|
+| `data/repository` | 98,31 % |
+| `data/mappers` | 97,34 % |
+| `data/remote/externo` | 96,88 % |
+| `domain/validacion` | 93,84 % |
+| `domain/usecase` | 89,58 % |
+| `domain/model` | 85,79 % |
+| `presentation` | 83,77 % |
+| `data/remote` | 76,31 % |
+
+Para que los ViewModels sean comprobables sin Room, DataStore ni backend, dependen de los
+contratos `AuthRepositorio`, `CatalogRepositorio` y `CitaRepositorio` (inversión de
+dependencias); las pruebas los sustituyen por dobles definidos en `test/.../dobles/`.
 
 La cobertura se mide sobre el **código lógico**: dominio (validadores, casos de uso, modelos),
 capa de presentación (ViewModels) y mapeadores. Quedan excluidas las clases sin lógica propia o
