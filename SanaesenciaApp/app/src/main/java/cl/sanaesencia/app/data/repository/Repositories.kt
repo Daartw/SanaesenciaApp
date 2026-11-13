@@ -17,6 +17,7 @@ import cl.sanaesencia.app.data.remote.LoginRequest
 import cl.sanaesencia.app.data.remote.LoginResponse
 import cl.sanaesencia.app.data.remote.PedidoItemRequest
 import cl.sanaesencia.app.data.remote.PedidoResponse
+import cl.sanaesencia.app.data.remote.PerfilResponse
 import cl.sanaesencia.app.data.remote.ProductoResponse
 import cl.sanaesencia.app.data.remote.ProfesionalResponse
 import cl.sanaesencia.app.data.remote.ReagendarCitaRequest
