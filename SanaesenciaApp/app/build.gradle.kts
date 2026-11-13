@@ -21,7 +21,6 @@ val apiBaseUrl: String = (project.findProperty("API_BASE_URL") as String?) ?: "h
 
 android {
     namespace = "cl.sanaesencia.app"
-    // OkHttp 5 exige compilar contra la API 36
     compileSdk = 36
 
     defaultConfig {
@@ -80,7 +79,7 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:3.0.0")
     implementation("com.squareup.retrofit2:converter-moshi:3.0.0")
     implementation("com.squareup.moshi:moshi-kotlin:1.15.1")
-    implementation("com.squareup.okhttp3:logging-interceptor:5.5.1")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     implementation("com.google.android.gms:play-services-location:21.3.0")
 

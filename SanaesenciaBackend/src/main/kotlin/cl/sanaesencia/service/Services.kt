@@ -66,7 +66,7 @@ class AuthService(
 ) {
     // Hash de relleno: si el correo no existe igual se compara una contraseña, para que el tiempo
     // de respuesta no revele qué correos están registrados.
-    private val hashSenuelo: String = encoder.encode("sin-cuenta")
+    private val hashSenuelo: String = requireNotNull(encoder.encode("sin-cuenta"))
 
     fun login(r: LoginRequest, ip: String = "?"): LoginResponse {
         val email = r.email.trim().lowercase()
@@ -440,7 +440,7 @@ class AdminService(
                             email = email,
                             telefono = r.telefono?.trim().orEmpty(),
                             rol = RolUsuario.PROFESIONAL,
-                            passwordHash = encoder.encode(password),
+                            passwordHash = requireNotNull(encoder.encode(password)),
                             consentimientoSalud = true,
                         )
                     )
