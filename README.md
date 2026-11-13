@@ -65,6 +65,9 @@ profesionales y administración (agenda de citas, tienda, boxes y seguimiento), 
 | RF-14 MEDIlink | Admin → Inicio → Sincronizar (ver sección MEDIlink) |
 | RF-15 GPS | Inicio paciente: distancia a la sede y "Cómo llegar" |
 | RNF-06 | Spring Security con filtro JWT, sesiones stateless y reglas por rol (`/admin/**` solo ADMIN, etc.) |
+| API externa | Inicio paciente: clima de la sede desde Open-Meteo (ver sección API externa) |
+| Pruebas | Pruebas unitarias con informe de cobertura JaCoCo (ver sección Pruebas) |
+| APK firmado | `signingConfigs` + `keystore.properties` (ver sección Release) |
 
 ## Sesión y permisos
 - El backend responde **401** cuando falta el token, es inválido o expiró, y **403** cuando el rol no tiene permiso. Los errores de datos siguen siendo 400 con un `mensaje` legible.
@@ -144,8 +147,104 @@ Para un celular físico, indicar la IP local del PC al compilar, sin editar arch
 
 Más detalle, y la lista de pendientes antes de un despliegue real, en [SECURITY.md](SECURITY.md).
 
-## Release
-Configurar un keystore propio desde Android Studio. Nunca subir keystore, passwords, secretos JWT o `google-services.json` a GitHub.
+## API externa: clima de la sede (Open-Meteo)
+La app consume una **API externa de terceros** desde el propio cliente Android, además de
+sus microservicios: el pronóstico de [Open-Meteo](https://open-meteo.com) para la sede de
+Los Vilos. Aparece en el inicio del paciente, bajo la tarjeta de la sede, porque responde a
+la misma decisión: cómo y cuándo llegar a una cita presencial.
+
+- Servicio público, gratuito y **sin API key**, así que funciona sin configurar nada.
+- Cliente propio (`data/remote/externo/ClimaRetrofit.kt`) con su **propia URL base**, separado
+  del cliente del backend: no lleva el interceptor de JWT, de modo que el token de la persona
+  nunca viaja a un servidor de terceros, y un 401 de Open-Meteo no puede cerrar la sesión.
+- Tiempos de espera más cortos (8 s) y degradación elegante: si el servicio falla, la tarjeta
+  muestra un aviso con botón de reintento y el resto del inicio sigue funcionando igual.
+
+| Pieza | Archivo |
+|---|---|
+| Interfaz y DTOs | `data/remote/externo/ClimaApi.kt` |
+| Cliente HTTP independiente | `data/remote/externo/ClimaRetrofit.kt` |
+| Conversión a dominio | `data/repository/ClimaRepository.kt` |
+| Modelo y códigos WMO | `domain/model/Clima.kt` |
+| Estado de pantalla | `presentation/ClimaViewModel.kt` |
+| Tarjeta en la interfaz | `ui/clima/ClimaSedeCard.kt` |
+
+## Pruebas unitarias y cobertura
+```bash
+cd SanaesenciaApp
+./gradlew testDebugUnitTest     # solo ejecutar las pruebas
+./gradlew jacocoTestReport      # pruebas + informe de cobertura
+```
+El informe queda en `app/build/reports/jacoco/jacocoTestReport/html/index.html`.
+El CI también lo calcula en cada push y publica el resultado en el resumen del workflow,
+además de subir el informe HTML como artefacto descargable.
+
+**Cobertura actual: 86,62 % de instrucciones y 92,21 % de líneas.**
+
+| Paquete | Instrucciones |
+|---|---|
+| `data/repository` | 98,31 % |
+| `data/mappers` | 97,34 % |
+| `data/remote/externo` | 96,88 % |
+| `domain/validacion` | 93,84 % |
+| `domain/usecase` | 89,58 % |
+| `domain/model` | 85,79 % |
+| `presentation` | 83,77 % |
+| `data/remote` | 76,31 % |
+
+Para que los ViewModels sean comprobables sin Room, DataStore ni backend, dependen de los
+contratos `AuthRepositorio`, `CatalogRepositorio` y `CitaRepositorio` (inversión de
+dependencias); las pruebas los sustituyen por dobles definidos en `test/.../dobles/`.
+
+La cobertura se mide sobre el **código lógico**: dominio (validadores, casos de uso, modelos),
+capa de presentación (ViewModels) y mapeadores. Quedan excluidas las clases sin lógica propia o
+que no son ejecutables en la JVM: pantallas Compose y tema, servicios de Android (FCM, GPS,
+WorkManager), DTOs de red, repositorios que envuelven Room y Retrofit, y el código generado por
+Room, KSP y Compose. La lista exacta está en `app/build.gradle.kts` (`exclusionesDeCobertura`).
+
+## Release: generar el APK firmado
+El proyecto trae la configuración de firma lista; solo falta el keystore, que **nunca** se sube
+a GitHub (`*.jks` y `keystore.properties` están en `.gitignore`).
+
+**1. Crear el keystore** (una sola vez). Desde la carpeta `SanaesenciaApp`:
+```bash
+keytool -genkeypair -v \
+  -keystore sanaesencia-release.jks \
+  -alias sanaesencia \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -dname "CN=Sanaesencia, OU=DSY1105, O=Centro Integrativo Sanaesencia, L=Los Vilos, C=CL"
+```
+También se puede desde Android Studio: *Build → Generate Signed App Bundle / APK → APK → Create new…*
+
+**2. Declarar las credenciales.** Copiar `keystore.properties.example` como `keystore.properties`
+(en la carpeta `SanaesenciaApp`) y completar:
+```properties
+storeFile=sanaesencia-release.jks
+storePassword=...
+keyAlias=sanaesencia
+keyPassword=...
+```
+Alternativa sin archivo: las variables de entorno `SANAESENCIA_STORE_FILE`,
+`SANAESENCIA_STORE_PASSWORD`, `SANAESENCIA_KEY_ALIAS` y `SANAESENCIA_KEY_PASSWORD`.
+
+**3. Generar el APK:**
+```bash
+./gradlew assembleRelease
+```
+Queda en `app/build/outputs/apk/release/app-release.apk`.
+
+**4. Verificar la firma:**
+```bash
+"$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
+```
+
+Detalles de la configuración (`app/build.gradle.kts`):
+- `signingConfigs.release` lee `keystore.properties` y, si no existe, las variables de entorno.
+- Firma con los esquemas **v1 y v2**.
+- `isMinifyEnabled = false`: Moshi y Room resuelven clases por reflexión y R8 las eliminaría.
+  Las reglas quedan declaradas en `app/proguard-rules.pro` por si se activa la ofuscación.
+- Si no hay keystore configurado, el proyecto **compila igual** y la variante release queda sin
+  firmar, en vez de fallar la compilación.
 
 ## Autor
 Daniel Araya Rebolledo ([@Daartw](https://github.com/Daartw)) — Proyecto académico DSY1105, Centro Integrativo Sanaesencia.

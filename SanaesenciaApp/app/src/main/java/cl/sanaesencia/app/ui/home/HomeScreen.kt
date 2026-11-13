@@ -71,8 +71,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import cl.sanaesencia.app.presentation.ClimaViewModel
 import cl.sanaesencia.app.services.ContactService
 import cl.sanaesencia.app.services.LocationService
+import cl.sanaesencia.app.ui.clima.ClimaSedeCard
 import cl.sanaesencia.app.ui.privacy.PrivacyPolicyDialog
 import cl.sanaesencia.app.ui.theme.WhatsAppGreen
 import kotlinx.coroutines.Dispatchers
@@ -92,6 +94,7 @@ fun HomeScreen(
     onShop: () -> Unit,
     onProfile: () -> Unit,
     onAppointments: () -> Unit,
+    climaViewModel: ClimaViewModel,
     nombre: String = "",
 ) {
     val context = LocalContext.current
@@ -472,6 +475,11 @@ fun HomeScreen(
                 }
             }
         }
+
+        // IE 3.1.4 — CLIMA DE LA SEDE (API EXTERNA: Open-Meteo)
+        // Va justo después de la tarjeta de la sede porque complementa la misma
+        // decisión del paciente: cómo y cuándo llegar a Caupolicán 220.
+        ClimaSedeCard(viewModel = climaViewModel)
 
         // WHATSAPP CONTACT CARD
         Card(

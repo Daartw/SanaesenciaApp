@@ -6,12 +6,12 @@ import cl.sanaesencia.app.data.remote.CitaResponse
 import cl.sanaesencia.app.data.remote.EstadoCitaRequest
 import cl.sanaesencia.app.data.remote.FichaClinicaResponse
 import cl.sanaesencia.app.data.remote.mensajeUsuario
-import cl.sanaesencia.app.data.repository.CitaRepository
+import cl.sanaesencia.app.data.repository.CitaRepositorio
 import cl.sanaesencia.app.domain.model.EstadoCita
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
-class AgendaViewModel(private val repo: CitaRepository) : BaseViewModel() {
+class AgendaViewModel(private val repo: CitaRepositorio) : BaseViewModel() {
     val state = MutableStateFlow<UiState<List<CitaResponse>>>(UiState.Cargando)
     val ficha = MutableStateFlow<UiState<List<FichaClinicaResponse>>>(UiState.Vacio)
     val message = MutableStateFlow<String?>(null)

@@ -7,7 +7,7 @@ import cl.sanaesencia.app.data.remote.CrearCitaRequest
 import cl.sanaesencia.app.data.remote.DisponibilidadResponse
 import cl.sanaesencia.app.data.remote.ReagendarCitaRequest
 import cl.sanaesencia.app.data.remote.mensajeUsuario
-import cl.sanaesencia.app.data.repository.CitaRepository
+import cl.sanaesencia.app.data.repository.CitaRepositorio
 import cl.sanaesencia.app.domain.usecase.AgendarCitaUseCase
 import cl.sanaesencia.app.domain.validacion.ResultadoValidacion
 import cl.sanaesencia.app.domain.validacion.ValidadorCita
@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class CitasViewModel(private val repo: CitaRepository, private val agendar: AgendarCitaUseCase) : BaseViewModel() {
+class CitasViewModel(private val repo: CitaRepositorio, private val agendar: AgendarCitaUseCase) : BaseViewModel() {
     private val clock = Clock.system(ZoneId.of("America/Santiago"))
     private val validator = ValidadorCita()
     val citas = MutableStateFlow<UiState<List<CitaResponse>>>(UiState.Cargando)
