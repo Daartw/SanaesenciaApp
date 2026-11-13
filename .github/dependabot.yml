@@ -11,6 +11,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # OkHttp 5 exige compileSdk 37 y Android Gradle Plugin 9. Revisar al migrar a AGP 9.
+      - dependency-name: com.squareup.okhttp3:*
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: docker-compose
     directory: /
     schedule:
