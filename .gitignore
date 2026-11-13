@@ -29,6 +29,7 @@ Thumbs.db
 .env
 *.jks
 *.keystore
+keystore.properties
 *.pem
 *.key
 google-services.json
