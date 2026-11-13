@@ -53,6 +53,16 @@ jobs:
       # jacocoTestReport ya depende de testDebugUnitTest (IE 3.2.1).
       - run: ./gradlew jacocoTestReport assembleDebug --no-daemon
 
+      - name: Diagnostico de rutas
+        if: always()
+        run: |
+          echo "--- archivos de cobertura ---"
+          find app/build \( -name "*.exec" -o -name "*.ec" \) | head -20
+          echo "--- directorios de clases kotlin ---"
+          find app/build -type d -name "*kotlin-classes*" | head -20
+          echo "--- otros directorios de clases ---"
+          find app/build -type d -name "classes" | head -20
+
       - name: Cobertura de pruebas unitarias
         run: python3 ../.github/scripts/cobertura.py app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
 
