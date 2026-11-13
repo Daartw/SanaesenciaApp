@@ -217,14 +217,22 @@ tasks.register<JacocoReport>("jacocoTestReport") {
 
     val carpetaBuild = layout.buildDirectory.get().asFile
 
+    // Las rutas cambian según la versión del Android Gradle Plugin; se declaran todas
+    // y las que no existan quedan simplemente vacías.
+    val carpetasDeClases = listOf(
+        // AGP 9
+        "intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes",
+        "intermediates/javac/debug/compileDebugJavaWithJavac/classes",
+        // AGP 8 y anteriores
+        "tmp/kotlin-classes/debug",
+        "intermediates/javac/debug/classes",
+    )
+
     classDirectories.setFrom(
         files(
-            fileTree(File(carpetaBuild, "tmp/kotlin-classes/debug")) {
-                exclude(exclusionesDeCobertura)
-            },
-            fileTree(File(carpetaBuild, "intermediates/javac/debug")) {
-                exclude(exclusionesDeCobertura)
-            },
+            carpetasDeClases.map { ruta ->
+                fileTree(File(carpetaBuild, ruta)) { exclude(exclusionesDeCobertura) }
+            }
         )
     )
 
