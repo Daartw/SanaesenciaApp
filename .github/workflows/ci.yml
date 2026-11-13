@@ -58,10 +58,14 @@ jobs:
         run: |
           echo "--- archivos de cobertura ---"
           find app/build \( -name "*.exec" -o -name "*.ec" \) | head -20
-          echo "--- directorios de clases kotlin ---"
-          find app/build -type d -name "*kotlin-classes*" | head -20
-          echo "--- otros directorios de clases ---"
-          find app/build -type d -name "classes" | head -20
+          echo "--- .class de la app ---"
+          find app/build -name "*.class" -path "*cl/sanaesencia*" | head -5
+          echo "--- jars con clases ---"
+          find app/build -name "*.jar" | grep -iE "class|dex|app" | head -20
+          echo "--- build/ ---"
+          ls app/build
+          echo "--- intermediates/ ---"
+          ls app/build/intermediates | head -60
 
       - name: Cobertura de pruebas unitarias
         run: python3 ../.github/scripts/cobertura.py app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
