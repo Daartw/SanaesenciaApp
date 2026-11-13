@@ -1,14 +1,14 @@
 package cl.sanaesencia
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.security.Keys
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
@@ -53,8 +53,8 @@ class SeguridadTest {
 
     @Test
     fun `solo el administrador entra al panel admin`() {
-        val paciente = sesion("paciente@sanaesencia.demo")["token"].asText()
-        val admin = sesion("admin@sanaesencia.demo")["token"].asText()
+        val paciente = sesion("paciente@sanaesencia.demo")["token"].asString()
+        val admin = sesion("admin@sanaesencia.demo")["token"].asString()
         mvc.perform(get("/admin/citas").header("Authorization", bearer(paciente))).andExpect(status().isForbidden)
         mvc.perform(get("/admin/citas").header("Authorization", bearer(admin))).andExpect(status().isOk)
     }
@@ -99,7 +99,7 @@ class SeguridadTest {
 
     @Test
     fun `crear un profesional exige una contrasena inicial`() {
-        val admin = sesion("admin@sanaesencia.demo")["token"].asText()
+        val admin = sesion("admin@sanaesencia.demo")["token"].asString()
         val cuerpo = mapOf(
             "nombreCompleto" to "Nueva Profesional",
             "email" to "nueva@sanaesencia.demo",

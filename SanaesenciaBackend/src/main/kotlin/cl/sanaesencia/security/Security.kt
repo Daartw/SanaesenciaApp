@@ -20,7 +20,7 @@ import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
 import org.springframework.web.filter.OncePerRequestFilter
@@ -207,10 +207,12 @@ class SecurityConfig(
         return http.build()
     }
 
-    // AntPathRequestMatcher evita el conflicto entre DispatcherServlet y la consola H2.
+    // Rutas por patrón (Spring Security 7 reemplazó AntPathRequestMatcher por PathPatternRequestMatcher).
     // Sin método = cualquier verbo HTTP (antMatcher(method, ...) no acepta null).
-    private fun ant(method: HttpMethod?, pattern: String): AntPathRequestMatcher =
-        if (method == null) AntPathRequestMatcher.antMatcher(pattern) else AntPathRequestMatcher.antMatcher(method, pattern)
+    private val matchers = PathPatternRequestMatcher.withDefaults()
+
+    private fun ant(method: HttpMethod?, pattern: String): PathPatternRequestMatcher =
+        matchers.matcher(method, pattern)
 
     private fun escribirError(response: HttpServletResponse, status: Int, mensaje: String) {
         response.status = status
