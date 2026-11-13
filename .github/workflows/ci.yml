@@ -50,4 +50,14 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v6
-      - run: ./gradlew testDebugUnitTest assembleDebug --no-daemon
+      # jacocoTestReport ya depende de testDebugUnitTest (IE 3.2.1).
+      - run: ./gradlew jacocoTestReport assembleDebug --no-daemon
+
+      - name: Cobertura de pruebas unitarias
+        run: python3 ../.github/scripts/cobertura.py app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: informe-cobertura
+          path: SanaesenciaApp/app/build/reports/jacoco/jacocoTestReport/html
