@@ -4,7 +4,7 @@ import androidx.lifecycle.viewModelScope
 import cl.sanaesencia.app.data.remote.ActualizarPerfilRequest
 import cl.sanaesencia.app.data.remote.PerfilResponse
 import cl.sanaesencia.app.data.remote.mensajeUsuario
-import cl.sanaesencia.app.data.repository.AuthRepository
+import cl.sanaesencia.app.data.repository.AuthRepositorio
 import cl.sanaesencia.app.domain.validacion.ResultadoValidacion
 import cl.sanaesencia.app.domain.validacion.ValidadorFechaNacimiento
 import cl.sanaesencia.app.domain.validacion.ValidadorNombre
@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class PerfilViewModel(
-    private val repo: AuthRepository
+    private val repo: AuthRepositorio
 ) : BaseViewModel() {
 
     companion object {

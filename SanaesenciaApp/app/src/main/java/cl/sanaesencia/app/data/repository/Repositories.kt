@@ -17,6 +17,7 @@ import cl.sanaesencia.app.data.remote.LoginRequest
 import cl.sanaesencia.app.data.remote.LoginResponse
 import cl.sanaesencia.app.data.remote.PedidoItemRequest
 import cl.sanaesencia.app.data.remote.PedidoResponse
+import cl.sanaesencia.app.data.remote.PerfilResponse
 import cl.sanaesencia.app.data.remote.ProductoResponse
 import cl.sanaesencia.app.data.remote.ProfesionalResponse
 import cl.sanaesencia.app.data.remote.ReagendarCitaRequest
@@ -57,15 +58,49 @@ sealed interface Resultado<out T> {
 
 
 // ============================================================================
+// CONTRATOS
+//
+// Los ViewModels dependen de estas interfaces y no de las implementaciones, de modo
+// que en las pruebas unitarias se pueden sustituir por dobles sin necesitar Room,
+// DataStore ni un backend levantado (inversión de dependencias).
+// ============================================================================
+
+interface AuthRepositorio {
+    suspend fun login(email: String, password: String): LoginResponse
+    fun session(): Flow<Session?>
+    suspend fun logout()
+    suspend fun perfil(): PerfilResponse
+    suspend fun actualizarPerfil(request: ActualizarPerfilRequest): PerfilResponse
+}
+
+interface CatalogRepositorio {
+    fun profesionales(): Flow<List<Profesional>>
+    fun productos(): Flow<List<Producto>>
+    suspend fun refresh()
+}
+
+interface CitaRepositorio {
+    suspend fun crear(request: CrearCitaRequest): CitaResponse
+    suspend fun misCitas(): List<CitaResponse>
+    suspend fun cancelar(id: Long): Map<String, String>
+    suspend fun disponibilidad(profesionalId: Long, fecha: LocalDate): List<DisponibilidadResponse>
+    suspend fun reagendar(id: Long, request: ReagendarCitaRequest): CitaResponse
+    suspend fun agenda(): List<CitaResponse>
+    suspend fun historialPaciente(id: Long): List<FichaClinicaResponse>
+    suspend fun actualizarEstado(id: Long, request: EstadoCitaRequest): CitaResponse
+}
+
+
+// ============================================================================
 // AUTENTICACIÓN
 // ============================================================================
 
 class AuthRepository(
     private val api: SanaesenciaApi,
     private val sessions: SessionManager,
-) {
+) : AuthRepositorio {
 
-    suspend fun login(
+    override suspend fun login(
         email: String,
         password: String
     ): LoginResponse {
@@ -100,18 +135,18 @@ class AuthRepository(
         return response
     }
 
-    fun session() = sessions.session
+    override fun session(): Flow<Session?> = sessions.session
 
-    suspend fun logout() {
+    override suspend fun logout() {
         sessions.clear()
     }
 
-    suspend fun perfil() =
+    override suspend fun perfil(): PerfilResponse =
         api.perfil()
 
-    suspend fun actualizarPerfil(
+    override suspend fun actualizarPerfil(
         request: ActualizarPerfilRequest
-    ) = api.actualizarPerfil(request)
+    ): PerfilResponse = api.actualizarPerfil(request)
 }
 
 
@@ -122,9 +157,9 @@ class AuthRepository(
 class CatalogRepository(
     private val api: SanaesenciaApi,
     private val db: AppDatabase,
-) {
+) : CatalogRepositorio {
 
-    fun profesionales(): Flow<List<Profesional>> =
+    override fun profesionales(): Flow<List<Profesional>> =
         db.profesionales()
             .all()
             .map { rows ->
@@ -133,7 +168,7 @@ class CatalogRepository(
                 }
             }
 
-    fun productos(): Flow<List<Producto>> =
+    override fun productos(): Flow<List<Producto>> =
         db.productos()
             .all()
             .map { rows ->
@@ -155,7 +190,7 @@ class CatalogRepository(
      * REEMPLAZA (así no quedan profesionales inventados o borrados que luego fallan al agendar).
      * Si no hay conexión, se mantiene lo guardado y se informa el error.
      */
-    suspend fun refresh() {
+    override suspend fun refresh() {
         var error: Exception? = null
 
         try {
@@ -195,13 +230,13 @@ class CitaRepository(
     private val api: SanaesenciaApi,
     private val db: AppDatabase,
     private val sessions: SessionManager,
-) {
+) : CitaRepositorio {
 
     private suspend fun usuarioActual(): Long =
         sessions.session.first()?.userId ?: 0L
 
     /** Crea la cita en el servidor. Si falla, el error llega a la pantalla (no se inventa una cita local). */
-    suspend fun crear(
+    override suspend fun crear(
         request: CrearCitaRequest
     ): CitaResponse {
         val response = api.crearCita(request)
@@ -215,7 +250,7 @@ class CitaRepository(
      * Citas del paciente que inició sesión. Con conexión se usa el servidor y se actualiza la
      * copia local de ESE usuario; sin conexión se muestran sus citas guardadas.
      */
-    suspend fun misCitas(): List<CitaResponse> {
+    override suspend fun misCitas(): List<CitaResponse> {
         val userId = usuarioActual()
         return try {
             val remote = api.misCitas()
@@ -236,7 +271,7 @@ class CitaRepository(
         }
     }
 
-    suspend fun cancelar(
+    override suspend fun cancelar(
         id: Long
     ): Map<String, String> {
         val result = api.cancelarCita(id)
@@ -249,7 +284,7 @@ class CitaRepository(
         return result
     }
 
-    suspend fun disponibilidad(
+    override suspend fun disponibilidad(
         profesionalId: Long,
         fecha: LocalDate,
     ): List<DisponibilidadResponse> =
@@ -258,26 +293,26 @@ class CitaRepository(
             fecha = fecha.toString()
         )
 
-    suspend fun reagendar(
+    override suspend fun reagendar(
         id: Long,
         request: ReagendarCitaRequest
-    ) = api.reagendar(
+    ): CitaResponse = api.reagendar(
         citaId = id,
         request = request
     )
 
-    suspend fun agenda() =
+    override suspend fun agenda(): List<CitaResponse> =
         api.agendaProfesional()
 
-    suspend fun historialPaciente(
+    override suspend fun historialPaciente(
         id: Long
     ): List<FichaClinicaResponse> =
         api.historialPaciente(id)
 
-    suspend fun actualizarEstado(
+    override suspend fun actualizarEstado(
         id: Long,
         request: EstadoCitaRequest
-    ) = api.actualizarEstado(
+    ): CitaResponse = api.actualizarEstado(
         citaId = id,
         request = request
     )

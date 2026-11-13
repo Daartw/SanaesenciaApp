@@ -3,7 +3,7 @@ package cl.sanaesencia.app.presentation
 import androidx.lifecycle.viewModelScope
 
 import cl.sanaesencia.app.data.remote.LoginResponse
-import cl.sanaesencia.app.data.repository.AuthRepository
+import cl.sanaesencia.app.data.repository.AuthRepositorio
 import cl.sanaesencia.app.domain.validacion.ValidadorEmail
 import cl.sanaesencia.app.domain.validacion.ValidadorPassword
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class LoginViewModel(private val repo: AuthRepository) : BaseViewModel() {
+class LoginViewModel(private val repo: AuthRepositorio) : BaseViewModel() {
     val email = MutableStateFlow("")
     val password = MutableStateFlow("")
     val state = MutableStateFlow<UiState<LoginResponse>>(UiState.Vacio)

@@ -4,10 +4,12 @@ import android.content.Context
 import androidx.room.Room
 import cl.sanaesencia.app.data.local.AppDatabase
 import cl.sanaesencia.app.data.remote.RetrofitClient
+import cl.sanaesencia.app.data.remote.externo.ClimaRetrofit
 import cl.sanaesencia.app.data.repository.AuthRepository
 import cl.sanaesencia.app.data.repository.CartRepository
 import cl.sanaesencia.app.data.repository.CatalogRepository
 import cl.sanaesencia.app.data.repository.CitaRepository
+import cl.sanaesencia.app.data.repository.ClimaRepository
 import cl.sanaesencia.app.data.repository.PedidoRepository
 import cl.sanaesencia.app.data.session.SessionManager
 import cl.sanaesencia.app.domain.usecase.AgendarCitaUseCase
@@ -17,6 +19,7 @@ import cl.sanaesencia.app.presentation.AgendaViewModel
 import cl.sanaesencia.app.presentation.CartViewModel
 import cl.sanaesencia.app.presentation.CatalogViewModel
 import cl.sanaesencia.app.presentation.CitasViewModel
+import cl.sanaesencia.app.presentation.ClimaViewModel
 import cl.sanaesencia.app.presentation.LoginViewModel
 import cl.sanaesencia.app.presentation.PerfilViewModel
 import cl.sanaesencia.app.services.Notificaciones
@@ -54,12 +57,18 @@ class AppContainer(context: Context) {
     val cart = CartRepository(db.carrito())
     val pedidos = PedidoRepository(api)
 
+    // IE 3.1.4: API externa (Open-Meteo). Cliente propio, sin el token de la sesión.
+    val clima = ClimaRepository(ClimaRetrofit.api)
+
     val agendarCita = AgendarCitaUseCase(citas)
     val detectarDesercion = DetectarDesercionUseCase()
     val verificarStockBajo = VerificarStockBajoUseCase()
 
     // El catálogo (profesionales y productos) es público: se comparte entre sesiones.
     val catalogViewModel = CatalogViewModel(catalog)
+
+    // El clima de la sede tampoco depende de la cuenta: se comparte entre sesiones.
+    val climaViewModel = ClimaViewModel(clima)
 
     // Estos ViewModels guardan datos de la persona que inició sesión.
     // Se vuelven a crear al cerrar sesión para que la siguiente cuenta no vea datos de la anterior.

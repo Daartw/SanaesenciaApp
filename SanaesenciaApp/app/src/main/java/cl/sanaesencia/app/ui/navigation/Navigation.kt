@@ -188,6 +188,8 @@ fun SanaesenciaNavGraph(container: AppContainer) {
                 ScreenWithBottomBar(navController, s.role) {
                     HomeScreen(
                         nombre = s.name,
+                        // IE 3.1.4: pronóstico de la sede desde la API externa.
+                        climaViewModel = container.climaViewModel,
                         onProf = { navController.navigate(Routes.PROFESIONALES) },
                         onShop = { navController.navigate(Routes.TIENDA) },
                         onProfile = { navController.navigate(Routes.PERFIL) },
