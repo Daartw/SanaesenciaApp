@@ -183,10 +183,17 @@ val exclusionesDeCobertura = listOf(
     "**/data/session/**",
     "**/data/privacy/**",
     "**/data/local/**",
-    // DTOs de red y cliente HTTP: son datos y configuración, sin lógica propia.
-    "**/data/remote/Api*.*",
+    // DTOs de red y cliente HTTP: son datos y configuración, sin lógica propia
+    // (equals/hashCode/copy generados por Kotlin para las data class).
+    "**/data/remote/*Request*.*",
+    "**/data/remote/*Response*.*",
+    "**/data/remote/*Dto*.*",
+    "**/data/remote/SanaesenciaApi*.*",
     "**/data/remote/RetrofitClient*.*",
+    "**/data/remote/externo/ClimaApi*.*",
     "**/data/remote/externo/ClimaRetrofit*.*",
+    // Fábricas de ViewModel: adaptadores del framework de Android.
+    "**/presentation/*Factory*.*",
     // Repositorios que envuelven Room y Retrofit: se validan con pruebas de
     // integración contra el backend, no con pruebas unitarias en la JVM.
     // (ClimaRepository sí se mide: su lógica de conversión es pura.)

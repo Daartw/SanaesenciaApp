@@ -1,7 +1,7 @@
 package cl.sanaesencia.app.domain.usecase
 
 import cl.sanaesencia.app.data.remote.CrearCitaRequest
-import cl.sanaesencia.app.data.repository.CitaRepository
+import cl.sanaesencia.app.data.repository.CitaRepositorio
 import cl.sanaesencia.app.domain.model.EstadoProfesional
 import cl.sanaesencia.app.domain.validacion.ResultadoValidacion
 import cl.sanaesencia.app.domain.validacion.ValidadorCita
@@ -12,7 +12,7 @@ import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 class AgendarCitaUseCase(
-    private val repository: CitaRepository,
+    private val repository: CitaRepositorio,
     private val validator: ValidadorCita = ValidadorCita(),
     private val clock: Clock = Clock.system(
         ZoneId.of("America/Santiago")
