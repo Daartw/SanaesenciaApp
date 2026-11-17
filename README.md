@@ -147,6 +147,10 @@ Para un celular físico, indicar la IP local del PC al compilar, sin editar arch
 
 Más detalle, y la lista de pendientes antes de un despliegue real, en [SECURITY.md](SECURITY.md).
 
+## Defensa
+Las preguntas probables de cada indicador de la pauta, con la respuesta anclada a archivos
+concretos del repositorio, están en [DEFENSA.md](DEFENSA.md).
+
 ## API externa: clima de la sede (Open-Meteo)
 La app consume una **API externa de terceros** desde el propio cliente Android, además de
 sus microservicios: el pronóstico de [Open-Meteo](https://open-meteo.com) para la sede de
