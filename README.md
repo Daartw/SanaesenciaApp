@@ -151,6 +151,9 @@ Más detalle, y la lista de pendientes antes de un despliegue real, en [SECURITY
 Las preguntas probables de cada indicador de la pauta, con la respuesta anclada a archivos
 concretos del repositorio, están en [DEFENSA.md](DEFENSA.md).
 
+La arquitectura, los dominios del backend y el recorrido completo de una reserva de cita
+están en [ARQUITECTURA.md](ARQUITECTURA.md).
+
 ## API externa: clima de la sede (Open-Meteo)
 La app consume una **API externa de terceros** desde el propio cliente Android, además de
 sus microservicios: el pronóstico de [Open-Meteo](https://open-meteo.com) para la sede de
