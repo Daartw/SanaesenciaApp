@@ -100,7 +100,7 @@ Tres servicios lo respaldan: `AdminService`, `DesercionService` y `MedilinkServi
 cualquier controlador: extrae el token de la cabecera `Authorization`, lo valida y deja al
 usuario en el contexto de seguridad.
 
-`GlobalExceptionHandler` (al final de `Controllers.kt`) traduce las excepciones a códigos HTTP:
+`ApiExceptionHandler` (al final de `Controllers.kt`) traduce las excepciones a códigos HTTP:
 400 para datos inválidos, 401 sin sesión, 403 sin permisos, 409 por dato duplicado y 429 por
 demasiados intentos. Así la app nunca recibe un stacktrace.
 
